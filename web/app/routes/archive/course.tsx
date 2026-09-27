@@ -24,6 +24,7 @@ import { getConfig, requireMe } from "~/lib/viewer.server";
 import ui from "~/styles/ui.module.css";
 import type { Route } from "./+types/course";
 import page from "./course.module.css";
+import { pageUrl } from "~/lib/url.server";
 
 function courseIdOf(params: { courseId?: string }): number {
   const id = Number(params.courseId);
@@ -48,7 +49,7 @@ export const middleware: Route.MiddlewareFunction[] = [
 export async function loader({ request, params, context }: Route.LoaderArgs) {
   const me = await requireMe(context);
   const courseId = courseIdOf(params);
-  const url = new URL(request.url);
+  const url = pageUrl(request);
   const client = context.get(apiContext).client;
   const path = { courseId };
   const commentsCursor = url.searchParams.get("comments");
@@ -111,7 +112,7 @@ export async function action({ request, params, context }: Route.ActionArgs) {
   const courseId = courseIdOf(params);
   const client = context.get(apiContext).client;
   const flash = context.get(flashContext);
-  const here = new URL(request.url);
+  const here = pageUrl(request);
   const done = (message: string) => {
     flash.put(message);
     return redirect(here.pathname + here.search);

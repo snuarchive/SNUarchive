@@ -1,5 +1,6 @@
 import { env } from "~/lib/env.server";
 import type { Route } from "./+types/api-proxy";
+import { pageUrl } from "~/lib/url.server";
 
 // Same-origin passthrough to the API for the few browser-direct requests:
 // OAuth redirects, admin file previews and log export downloads. In
@@ -15,7 +16,7 @@ const HOP_BY_HOP = [
 ];
 
 async function proxy(request: Request): Promise<Response> {
-  const url = new URL(request.url);
+  const url = pageUrl(request);
   const target = new URL(url.pathname + url.search, env.apiOrigin);
 
   const headers = new Headers(request.headers);

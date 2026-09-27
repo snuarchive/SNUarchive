@@ -21,6 +21,7 @@ import { bannerDismissedCookie, readCookie } from "./lib/cookies.server";
 import { env } from "./lib/env.server";
 import { Flash, flashContext } from "./lib/flash.server";
 import { getConfig, getMe } from "./lib/viewer.server";
+import { pageUrl } from "./lib/url.server";
 
 const UNSAFE = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
@@ -57,7 +58,7 @@ const AUTH_MESSAGES = {
 export async function loader({ request, context }: Route.LoaderArgs) {
   // The OAuth callback lands on /?auth=…; turn it into a toast and drop the
   // parameter from the address.
-  const url = new URL(request.url);
+  const url = pageUrl(request);
   const auth = url.searchParams.get("auth");
   if (auth && auth in AUTH_MESSAGES) {
     const { message, kind } = AUTH_MESSAGES[auth as keyof typeof AUTH_MESSAGES];

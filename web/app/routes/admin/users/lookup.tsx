@@ -8,11 +8,12 @@ import { errorMessage } from "~/lib/errors";
 import { flashContext } from "~/lib/flash.server";
 import ui from "~/styles/ui.module.css";
 import type { Route } from "./+types/lookup";
+import { pageUrl } from "~/lib/url.server";
 
 // Exact-email lookup (the API has no listing), or ?id= when following a
 // log entry or contribution to its account.
 export async function loader({ request, context }: Route.LoaderArgs) {
-  const params = new URL(request.url).searchParams;
+  const params = pageUrl(request).searchParams;
   const email = (params.get("email") ?? "").trim();
   const id = Number(params.get("id"));
   const client = context.get(apiContext).client;

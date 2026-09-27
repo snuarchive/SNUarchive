@@ -10,10 +10,11 @@ import { requireMe } from "~/lib/viewer.server";
 import ui from "~/styles/ui.module.css";
 import type { Route } from "./+types/layout";
 import s from "./layout.module.css";
+import { pageUrl } from "~/lib/url.server";
 
 export async function loader({ request, context }: Route.LoaderArgs) {
   await requireMe(context);
-  const url = new URL(request.url);
+  const url = pageUrl(request);
   const q = (url.searchParams.get("q") ?? "").trim().slice(0, 100);
   const cursor = url.searchParams.get("cursor") ?? undefined;
   const client = context.get(apiContext).client;
@@ -41,7 +42,7 @@ const SEARCH_DELAY_MS = 250;
 
 export default function ArchiveLayout({ loaderData }: Route.ComponentProps) {
   const { q, cursor, page, home, favoriteIds } = loaderData;
-  const { pathname } = useLocation();
+  const { pathname, key: locationKey } = useLocation();
   const { courseId } = useParams();
   const activeId = courseId ? Number(courseId) : null;
   const favorites = new Set(favoriteIds);
@@ -51,7 +52,9 @@ export default function ArchiveLayout({ loaderData }: Route.ComponentProps) {
   // shortly after typing stops; without it, Enter submits.
   const submit = useSubmit();
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  useEffect(() => () => clearTimeout(timer.current), []);
+  // A pending search must not fire after the user moved on (opened a course,
+  // pressed Enter): cancel it whenever the address changes.
+  useEffect(() => () => clearTimeout(timer.current), [locationKey]);
 
   // Keep the box in step with the address (back button, the Archive link)
   // without fighting the user while they type.
@@ -101,7 +104,13 @@ export default function ArchiveLayout({ loaderData }: Route.ComponentProps) {
         </summary>
         <div className={s.content}>
           {/* GET to the current path, so searching keeps the open course. */}
-          <Form method="get" action={pathname} role="search" onInput={onInput}>
+          <Form
+            method="get"
+            action={pathname}
+            role="search"
+            onInput={onInput}
+            onSubmit={() => clearTimeout(timer.current)}
+          >
             <label htmlFor="searchInput" className="sr-only">
               강의 검색
             </label>

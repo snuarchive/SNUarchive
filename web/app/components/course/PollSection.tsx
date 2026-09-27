@@ -3,6 +3,7 @@ import { Form, useSubmit } from "react-router";
 import type { Schemas } from "~/api/types";
 import { cx } from "~/lib/cx";
 import { formatDateTime, RATING_LABELS, termLabel } from "~/lib/format";
+import { useFailure } from "~/lib/forms";
 import ui from "~/styles/ui.module.css";
 import s from "./PollSection.module.css";
 import { SittingFields, type SittingDefaults } from "./SittingFields";
@@ -73,9 +74,23 @@ export function PollSection(props: Props) {
         ) : (
           <ClosedPoll {...props} />
         )}
+        <PollFailure />
       </div>
     </section>
   );
+}
+
+/** A refused vote, request or cancellation, shown under the section. */
+function PollFailure() {
+  const vote = useFailure("vote");
+  const request = useFailure("request");
+  const cancel = useFailure("cancel-request");
+  const failure = vote ?? request ?? cancel;
+  return failure ? (
+    <p className={ui.fieldError} role="alert">
+      {failure.message}
+    </p>
+  ) : null;
 }
 
 function closesText(voting: Sitting["voting"]): string {

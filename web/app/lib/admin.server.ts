@@ -2,10 +2,11 @@ import { type RouterContextProvider } from "react-router";
 
 import { seoulParts } from "./time.server";
 import { getConfig } from "./viewer.server";
+import { pageUrl } from "./url.server";
 
 /** The ?cursor= of a list page, for the API. */
 export function cursorOf(request: Request): string | undefined {
-  return new URL(request.url).searchParams.get("cursor") ?? undefined;
+  return pageUrl(request).searchParams.get("cursor") ?? undefined;
 }
 
 /** How many past years admin term pickers offer (see plan §5.2). */

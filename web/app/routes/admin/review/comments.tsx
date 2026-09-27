@@ -28,11 +28,9 @@ export async function action({ request, context }: Route.ActionArgs) {
   const form = await request.formData();
   const commentId = Number(form.get("commentId"));
   const failure = failureOf(
-    await context
-      .get(apiContext)
-      .client.DELETE("/admin/comments/{commentId}", {
-        params: { path: { commentId } },
-      }),
+    await context.get(apiContext).client.DELETE("/admin/comments/{commentId}", {
+      params: { path: { commentId } },
+    }),
   );
   const flash = context.get(flashContext);
   if (failure) flash.put(errorMessage(failure.error), "error");

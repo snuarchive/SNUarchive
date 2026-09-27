@@ -11,12 +11,13 @@ import { filterQuery, isEmptyFilter, readLogFilter } from "~/lib/logFilter";
 import { usePagedList } from "~/lib/usePagedList";
 import ui from "~/styles/ui.module.css";
 import type { Route } from "./+types/entries";
+import { pageUrl } from "~/lib/url.server";
 
 const PAGE_SIZE = 50;
 const FORMATS = ["json", "jsonl", "csv", "xlsx", "parquet"] as const;
 
 export async function loader({ request, context }: Route.LoaderArgs) {
-  const params = new URL(request.url).searchParams;
+  const params = pageUrl(request).searchParams;
   const filter = readLogFilter(params);
   const page = await load(
     context.get(apiContext).client.GET("/admin/logs", {

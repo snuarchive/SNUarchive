@@ -16,6 +16,7 @@ import { getConfig } from "~/lib/viewer.server";
 import { usePagedList } from "~/lib/usePagedList";
 import ui from "~/styles/ui.module.css";
 import type { Route } from "./+types/sittings";
+import { pageUrl } from "~/lib/url.server";
 
 const PAGE_SIZE = 20;
 const STATES = [
@@ -27,7 +28,7 @@ const STATES = [
 type VotingState = (typeof STATES)[number][0];
 
 export async function loader({ request, context }: Route.LoaderArgs) {
-  const url = new URL(request.url);
+  const url = pageUrl(request);
   const requested = url.searchParams.get("state");
   const state: VotingState = STATES.some(([v]) => v === requested)
     ? (requested as VotingState)

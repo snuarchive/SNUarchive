@@ -10,11 +10,12 @@ import { formatDateTime } from "~/lib/format";
 import { filterQuery, isEmptyFilter, readLogFilter } from "~/lib/logFilter";
 import ui from "~/styles/ui.module.css";
 import type { Route } from "./+types/delete";
+import { pageUrl } from "~/lib/url.server";
 
 // Confirmation page for a filtered delete: shows what the preview counted,
 // then deletes with the preview's token.
 export async function loader({ request, context }: Route.LoaderArgs) {
-  const params = new URL(request.url).searchParams;
+  const params = pageUrl(request).searchParams;
   const filter = readLogFilter(params);
   if (isEmptyFilter(filter)) throw redirect("/admin/logs/entries");
   const preview = await load(
@@ -26,7 +27,7 @@ export async function loader({ request, context }: Route.LoaderArgs) {
 }
 
 export async function action({ request, context }: Route.ActionArgs) {
-  const url = new URL(request.url);
+  const url = pageUrl(request);
   const filter = readLogFilter(url.searchParams);
   const token = String((await request.formData()).get("token") ?? "");
   const flash = context.get(flashContext);
