@@ -115,7 +115,9 @@
 
   /* The legacy nav hid the email on phones; keep a way to reach /me. */
   .accountShort {
-    display: inline;
+    display: inline-flex;
+    align-items: center;
+    min-height: 32px;
   }
 
   .auth :global(button),

@@ -115,6 +115,7 @@
   background: var(--background-raised);
   color: var(--text-primary);
   font-size: 16px;
+  text-align: center;
   cursor: pointer;
 }
 

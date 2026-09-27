@@ -85,7 +85,10 @@
   font-weight: 700;
 }
 
+/* Also the subtitle under a heading wrapper, as the legacy descendant
+   selector styled it. */
 .sectionTitle > span,
+.sectionTitle > div > span,
 .sectionTitle p {
   margin: 0;
   color: var(--text-secondary);
