@@ -69,7 +69,7 @@ func Setup(ctx context.Context, w io.Writer, o Options) (*slog.Logger, func(cont
 	}
 	reader, err := autoexport.NewMetricReader(ctx)
 	if err != nil {
-		return nil, noop, err
+		return nil, noop, errors.Join(err, spans.Shutdown(ctx))
 	}
 	tp := sdktrace.NewTracerProvider(sdktrace.WithBatcher(spans), sdktrace.WithResource(res))
 	mp := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader), sdkmetric.WithResource(res))

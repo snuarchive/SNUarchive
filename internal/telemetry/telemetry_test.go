@@ -4,9 +4,16 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
+
+	"go.opentelemetry.io/contrib/exporters/autoexport"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
 	"github.com/snuarchive/snuarchive/internal/telemetry"
 )
@@ -78,5 +85,38 @@ func TestOTelSetupWithEmptyService(t *testing.T) {
 	}
 	if err := shutdown(context.Background()); err != nil {
 		t.Fatal(err)
+	}
+}
+
+type probeExporter struct{ shutdown atomic.Bool }
+
+func (*probeExporter) ExportSpans(context.Context, []sdktrace.ReadOnlySpan) error { return nil }
+func (e *probeExporter) Shutdown(context.Context) error {
+	e.shutdown.Store(true)
+	return nil
+}
+
+var (
+	probe         = &probeExporter{}
+	registerProbe sync.Once
+)
+
+func TestSetupShutsDownSpanExporterWhenMetricReaderFails(t *testing.T) {
+	registerProbe.Do(func() {
+		autoexport.RegisterSpanExporter("probe", func(context.Context) (sdktrace.SpanExporter, error) { return probe, nil })
+		autoexport.RegisterMetricReader("failing", func(context.Context) (sdkmetric.Reader, error) {
+			return nil, errors.New("metric reader failed")
+		})
+	})
+	probe.shutdown.Store(false)
+	t.Setenv("OTEL_TRACES_EXPORTER", "probe")
+	t.Setenv("OTEL_METRICS_EXPORTER", "failing")
+	var buf bytes.Buffer
+	_, _, err := telemetry.Setup(context.Background(), &buf, telemetry.Options{Format: "json", OTel: true})
+	if err == nil {
+		t.Fatal("Setup must fail when the metric reader cannot be created")
+	}
+	if !probe.shutdown.Load() {
+		t.Fatal("span exporter was not shut down")
 	}
 }
