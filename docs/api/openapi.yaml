@@ -1159,49 +1159,6 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/VotingNotOpen' }
 
-  /admin/sittings/{sittingId}/vote-cutoff:
-    parameters:
-      - { $ref: '#/components/parameters/SittingId' }
-    put:
-      operationId: adminSetVoteCutoff
-      tags: [admin-voting]
-      summary: Set or clear the vote cutoff
-      description: |
-        Votes cast before `countVotesFrom` are kept but stop counting towards
-        this sitting's difficulty — for ratings given before the exam was
-        actually sat, or for abuse cleanup. Reversible: send null.
-      security:
-        - sessionCookie: []
-          csrfToken: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [countVotesFrom]
-              properties:
-                countVotesFrom:
-                  type: [string, 'null']
-                  format: date-time
-              additionalProperties: false
-      responses:
-        '200':
-          description: Refreshed voting state and difficulty
-          content:
-            application/json:
-              schema:
-                type: object
-                required: [voting, difficulty, excludedVoteCount]
-                properties:
-                  voting:     { $ref: '#/components/schemas/Voting' }
-                  difficulty: { $ref: '#/components/schemas/Difficulty' }
-                  excludedVoteCount: { type: integer, minimum: 0 }
-        '401': { $ref: '#/components/responses/Unauthenticated' }
-        '403': { $ref: '#/components/responses/AdminRequired' }
-        '404': { $ref: '#/components/responses/NotFound' }
-        '422': { $ref: '#/components/responses/ValidationFailed' }
-
   /admin/voting-requests:
     get:
       operationId: adminListVotingRequests
@@ -2195,7 +2152,7 @@ components:
 
     Voting:
       type: object
-      required: [state, isOpen, openedAt, closesAt, endedAt, countedFrom]
+      required: [state, isOpen, openedAt, closesAt, endedAt]
       properties:
         state:
           type: string
@@ -2216,10 +2173,6 @@ components:
           type: [string, 'null']
           format: date-time
           description: Set when an admin closed voting manually.
-        countedFrom:
-          type: [string, 'null']
-          format: date-time
-          description: Votes cast before this are kept but not counted.
 
     Difficulty:
       type: object
@@ -2228,7 +2181,7 @@ components:
         voteCount: { type: integer, minimum: 0 }
         average:
           type: [number, 'null']
-          description: One decimal place. Null when there are no counted votes.
+          description: One decimal place. Null when there are no votes.
         distribution:
           type: array
           minItems: 5
@@ -2541,7 +2494,6 @@ components:
         - voting_open
         - voting_update
         - voting_close
-        - vote_cutoff_set
         - vote_cast
         - voting_request_create
         - voting_request_cancel
