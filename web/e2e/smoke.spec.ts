@@ -1,61 +1,51 @@
 import { expect, test } from "@playwright/test";
 
-const pages = [
-  "/",
-  "/courses/sample",
-  "/admin/reports",
-  "/admin/stats",
-  "/admin/logs",
-  "/admin/colleges",
-];
+import { ACCOUNTS, resetMock, signIn } from "./helpers";
 
-for (const path of pages) {
-  test(`${path} is server-rendered`, async ({ request }) => {
-    const response = await request.get(path);
-    expect(response.status()).toBe(200);
-    const html = await response.text();
-    expect(html).toContain('<html lang="ko">');
-    expect(html).toContain("SNU Archive");
-  });
-}
-
-test("/admin redirects to the report queue", async ({ request }) => {
-  const response = await request.get("/admin", { maxRedirects: 0 });
-  expect(response.status()).toBe(302);
-  expect(response.headers()["location"]).toBe("/admin/reports");
+test.beforeEach(async ({ request }) => {
+  await resetMock(request);
 });
 
-test("unknown paths answer 404 and keep the navigation", async ({
+test("signed out, every page shows the sign-in screen with 401", async ({
   request,
 }) => {
-  const response = await request.get("/no-such-page");
-  expect(response.status()).toBe(404);
-  const html = await response.text();
-  expect(html).toContain("페이지를 찾을 수 없습니다.");
-  expect(html).toContain('aria-label="보기 전환"');
+  for (const path of ["/", "/courses/1", "/admin/review/reports", "/me"]) {
+    const response = await request.get(path, { maxRedirects: 0 });
+    expect(response.status(), path).toBe(401);
+    const html = await response.text();
+    expect(html).toContain('<html lang="ko"');
+    expect(html).toContain("Google로 로그인");
+  }
 });
 
-test("searching without JavaScript keeps the open course", async ({
-  browser,
-}) => {
-  const context = await browser.newContext({ javaScriptEnabled: false });
-  const page = await context.newPage();
-  await page.goto("/courses/sample");
-  await page.getByRole("searchbox").fill("미적분");
-  await page.getByRole("searchbox").press("Enter");
-  await expect(page).toHaveURL(/\/courses\/sample\?q=/);
-  await expect(page.getByRole("searchbox")).toHaveValue("미적분");
-  await context.close();
+test("unknown paths answer 404", async ({ request }) => {
+  const response = await request.get("/no-such-page");
+  expect(response.status()).toBe(404);
+  expect(await response.text()).toContain("페이지를 찾을 수 없습니다.");
+});
+
+test("students cannot open the admin console", async ({ page }) => {
+  await signIn(page, ACCOUNTS.student);
+  await expect(page.getByRole("link", { name: "Admin" })).toHaveCount(0);
+  const response = await page.goto("/admin/review/reports");
+  expect(response?.status()).toBe(403);
+  await expect(page.getByText("이 페이지를 볼 권한이 없습니다.")).toBeVisible();
 });
 
 test("pages hydrate and navigate without errors", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.goto("/admin/reports");
-  await page.getByRole("link", { name: "로그 보기" }).click();
-  await expect(page).toHaveURL("/admin/logs");
-  await expect(page.getByRole("heading", { name: "로그 보기" })).toBeVisible();
-  await page.getByRole("link", { name: "Archive" }).click();
+  await signIn(page, ACCOUNTS.admin);
+  await page.getByRole("link", { name: "Admin", exact: true }).click();
+  await expect(page).toHaveURL("/admin/review/reports");
+  for (const group of ["투표", "로그", "사용자", "운영", "검토"]) {
+    await page
+      .getByRole("navigation", { name: "관리자 메뉴" })
+      .getByRole("link", { name: group })
+      .click();
+    await expect(page.getByRole("heading", { level: 2 }).first()).toBeVisible();
+  }
+  await page.getByRole("link", { name: "Archive", exact: true }).click();
   await expect(page).toHaveURL("/");
   expect(errors).toEqual([]);
 });
