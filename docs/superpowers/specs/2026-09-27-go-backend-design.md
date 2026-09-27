@@ -50,6 +50,22 @@ API 세부(경로, 스키마, 에러 코드)는 그 파일이 기준이고, 이 
 | 홈 목록 | 즐겨찾기 · 투표 진행중 · 최근 제보 · 투표 요청 많은 강의 (각 10) |
 | 통합 테스트 | testcontainers-go (postgres:18) |
 | 관측 | slog(JSON, 개발은 text) + 요청 ID + OpenTelemetry(기본 off, O13) |
+| Go 모듈 경로 | `github.com/snuarchive/snuarchive` (**소문자**). 원격 저장소 이름 `snuarchive/SNUarchive`와 대소문자가 다르다는 점을 알고 택함 |
+| Go 버전 | `go 1.27` (빌드 이미지 `golang:1.27-alpine`) |
+| 클라이언트 IP | `TRUSTED_PROXIES` CIDR 목록 방식만. Vercel에서의 동작은 O16 |
+| 잡 실행 기록 | `job_runs` 테이블 |
+| 헬스체크 | `/healthz`(생존), `/readyz`(DB ping). `/api/v1` 밖, 계약 대상 아님, Caddy가 외부 노출 차단 |
+| 405 | JSON 에러 봉투, 코드 `METHOD_NOT_ALLOWED`(계약에 추가), `Allow` 헤더 포함 |
+| 1단계 엔드포인트 | `GET /api/v1/config` 포함 |
+| 마이그레이션 실행 | compose의 일회성 `migrate` 서비스. 성공해야 `app` 기동 |
+| compose | db, migrate, app, caddy(`/api/*`만 연결, 나머지는 프론트 단계에서 web 서비스 연결) |
+| 작업 실행기 | Makefile |
+| 린트 | `go vet` + staticcheck(`go tool`) |
+| 런타임 이미지 | alpine (+ `time/tzdata` 내장) |
+| JSON 본문 한도 | 64 KiB (업로드는 라우트별 3 MiB) |
+| 테스트 격리 | 테스트마다 템플릿 DB 복제. `-short`면 DB 테스트 건너뜀, 아니면 Docker 없을 때 실패 |
+| sqlc | `go tool` 의존성(cgo, gcc 필요) |
+| 구현 방식 | 서브에이전트 구동. 도중 결정은 open-items에 기록 후 건너뛰고 단계 끝에 모아서 질문 |
 
 ## 3. 구조
 
