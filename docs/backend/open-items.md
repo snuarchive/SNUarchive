@@ -20,4 +20,5 @@
 | O12 | Vercel Go 함수의 응답 크기·스트리밍·실행 시간 한도 확인 (로그 내보내기, 파일 열람 스트리밍) | Vercel 배포 필요 | 개발자: 프리뷰에서 큰 내보내기 실행. 한도 확인 후 `EXPORT_MAX_ROWS` 기본값 조정 또는 스토리지 경유 다운로드로 변경 | Vercel 배포의 내보내기 | 열림 |
 | O13 | OpenTelemetry 수집 백엔드 선정 (Grafana/Tempo, Honeycomb, Jaeger 등)과 엔드포인트 | 인프라 결정 | 팀 | `OTEL_ENABLED=true` 운영 | 열림 |
 | O14 | CI 구성 (GitHub Actions: vet, staticcheck, sqlc diff, 테스트, 계약 테스트, 이미지 빌드) | 사용자 결정으로 보류 | 개발자: 백엔드 1단계 이후 | 머지 품질 게이트 | 열림 |
+| O15 | S3 호환 테스트·로컬 서버 선정. 2026-09-27 확인 시 `minio/minio`, `quay.io/minio/minio` 이미지를 받을 수 없음(`docker manifest inspect` 실패). 후보: `chrislusf/seaweedfs`, `rustfs/rustfs`(둘 다 manifest 확인됨) | 결정 필요 | 개발자: 5단계 착수 시 후보로 s3 드라이버 스위트를 돌려 호환성 확인 후 선정 | 5단계 s3 테스트, compose의 선택형 S3 서비스 | 열림 |
 | O10 | 동료 제안서(`schema.sql`, `openapi.yaml`) 수정본을 제안자와 검토 | 제안자와 합의 필요 | 팀 리뷰 | 계약 확정 | 열림 |

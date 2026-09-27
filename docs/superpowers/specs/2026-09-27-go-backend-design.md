@@ -61,7 +61,9 @@ API 세부(경로, 스키마, 에러 코드)는 그 파일이 기준이고, 이 
 cmd/snuarchive/        serve | migrate | import | gc | jobs run <name> | logs export | gdrive auth
 internal/
   config/              환경변수 파싱·검증, 모순 경고
-  calendar/            Asia/Seoul 기준 현재 학기
+  calendar/            Asia/Seoul 기준 현재 학기, 학기 라벨 (time/tzdata 내장 — distroless에 zoneinfo 없음)
+  refdata/             /config 참조 데이터(시험 종류, 단과대, 학기 라벨)와 입력 한도 상수
+  apperr/              에러 코드·필드 에러 타입, HTTP 상태 매핑
   db/                  pgxpool, goose 마이그레이션(embed), sqlc 생성 코드, 트랜잭션 헬퍼
   auth/                Google OAuth, 세션 쿠키 코덱, CSRF, 개발 로그인
   users/               사용자 upsert, 프로필, 탈퇴 스크럽, 관리자 판정
@@ -154,6 +156,11 @@ db/migrations/         goose SQL
 - `activity_action` enum: 제안서 값 + `voting_update`, `voting_close`, `voting_request_create`, `voting_request_cancel`, `voting_request_reject`, `logs_export`, `logs_delete`, `logs_retention_delete`, `logs_archive`, `account_delete`, `profile_update`, `report_file_view`.
 - `activity_logs(id, user_id NULL, action, metadata jsonb, ip inet NULL, created_at)`
 - `log_archive_runs(id, started_at, finished_at, status running|succeeded|failed, cutoff, format, row_count, first_id, last_id, drive_file_id, error)`: 실행 중 1개 제한.
+- `job_runs(id, name retention|archive|upload-gc, started_at, finished_at, status succeeded|failed|skipped, affected, error)`: `/admin/jobs`의 마지막 실행 결과.
+
+### 4.6 제약 이름 규칙
+모든 CHECK·FK·UNIQUE 제약과 트리거 오류에는 이름이 있다(`<테이블>_<의미>_ck|fk|u`). 트리거는 `RAISE … USING CONSTRAINT`로 이름을 싣는다.
+`internal/db`의 매핑표가 모든 이름을 "필드 에러 / 에러 코드 / 내부 불변식(500)" 중 하나로 분류하고, 스키마에 있는데 표에 없는 이름은 테스트가 실패시킨다.
 
 ## 5. 동작
 
@@ -292,6 +299,9 @@ db/migrations/         goose SQL
 | `EXPORT_MAX_ROWS` | 1000000 | |
 | `LOG_FORMAT` / `LOG_LEVEL` | json / info | 개발 기본 text/debug |
 | `OTEL_ENABLED` | false | 켜면 표준 `OTEL_EXPORTER_OTLP_*`, `OTEL_SERVICE_NAME` 사용 |
+| `TRUSTED_PROXIES` | – | 쉼표 구분 CIDR. 직전 홉이 여기 속할 때만 `X-Forwarded-For`를 믿고 클라이언트 IP를 뽑는다. 비우면 연결 주소를 쓴다 |
+
+헬스체크(`/api/v1` 밖, 계약 대상 아님): `GET /healthz`(프로세스 생존), `GET /readyz`(DB ping).
 
 검증 원칙:
 - 필수 누락, 형식 오류, production의 개발 로그인은 기동을 실패시킨다.
