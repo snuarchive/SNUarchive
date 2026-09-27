@@ -58,11 +58,13 @@ func withRequestID(next http.Handler) http.Handler {
 
 // withClientIP honours X-Forwarded-For only when the direct peer is a trusted
 // proxy. The chain is walked right to left and the first untrusted hop wins,
-// so a client cannot spoof its address by sending the header itself.
+// so a client cannot spoof its address by sending the header itself. Every
+// header line counts, since a proxy may append a line rather than extend one.
 func withClientIP(trusted []netip.Prefix) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ip := resolveClientIP(r.RemoteAddr, r.Header.Get("X-Forwarded-For"), trusted)
+			xff := strings.Join(r.Header.Values("X-Forwarded-For"), ",")
+			ip := resolveClientIP(r.RemoteAddr, xff, trusted)
 			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), clientIPKey, ip)))
 		})
 	}

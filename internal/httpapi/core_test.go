@@ -102,6 +102,24 @@ func TestResolveClientIP(t *testing.T) {
 	}
 }
 
+// A proxy may append its own X-Forwarded-For line instead of extending the
+// client's; the client's forged first line must not win.
+func TestClientIPUsesEveryForwardedForLine(t *testing.T) {
+	proxies := []netip.Prefix{netip.MustParsePrefix("172.30.0.0/24")}
+	var got netip.Addr
+	h := withClientIP(proxies)(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		got = ClientIP(r.Context())
+	}))
+	req := httptest.NewRequest(http.MethodGet, "/x", nil)
+	req.RemoteAddr = "172.30.0.3:5000"
+	req.Header.Add("X-Forwarded-For", "10.9.9.9")
+	req.Header.Add("X-Forwarded-For", "198.51.100.1")
+	h.ServeHTTP(httptest.NewRecorder(), req)
+	if got.String() != "198.51.100.1" {
+		t.Fatalf("client ip = %s, want 198.51.100.1", got)
+	}
+}
+
 func TestCSRF(t *testing.T) {
 	rt := testRouter()
 	rt.handle(http.MethodPost, "/full", http.HandlerFunc(ok))
