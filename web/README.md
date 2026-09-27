@@ -35,13 +35,13 @@ APP_ENV=development DEV_LOGIN=1 pnpm dev
 
 ## 환경변수
 
-| 이름 | 설명 | 개발 기본값 |
-|---|---|---|
-| `APP_ENV` | `development` \| `production`(기본). `NODE_ENV`와 별개 | `production` |
-| `API_ORIGIN` | 서버가 API에 붙는 주소 | `http://localhost:8787` |
-| `APP_ORIGIN` | 이 앱의 공개 주소. API에 보내는 `Origin`, 액션 출처 검사에 씀 | `http://localhost:5173` |
-| `WEB_SESSION_SECRET` | 이 앱 쿠키(flash) 서명 키 | 개발용 고정값 |
-| `DEV_LOGIN` | `1`이면 개발용 로그인 폼. `APP_ENV=production`에서 켜면 기동 실패 | 꺼짐 |
+| 이름                 | 설명                                                              | 개발 기본값             |
+| -------------------- | ----------------------------------------------------------------- | ----------------------- |
+| `APP_ENV`            | `development` \| `production`(기본). `NODE_ENV`와 별개            | `production`            |
+| `API_ORIGIN`         | 서버가 API에 붙는 주소                                            | `http://localhost:8787` |
+| `APP_ORIGIN`         | 이 앱의 공개 주소. API에 보내는 `Origin`, 액션 출처 검사에 씀     | `http://localhost:5173` |
+| `WEB_SESSION_SECRET` | 이 앱 쿠키(flash) 서명 키                                         | 개발용 고정값           |
+| `DEV_LOGIN`          | `1`이면 개발용 로그인 폼. `APP_ENV=production`에서 켜면 기동 실패 | 꺼짐                    |
 
 `APP_ENV=production`이면 `API_ORIGIN`, `APP_ORIGIN`, `WEB_SESSION_SECRET`이 모두
 있어야 한다.
