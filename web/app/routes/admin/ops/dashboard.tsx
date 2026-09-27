@@ -13,7 +13,13 @@ export async function loader({ context }: Route.LoaderArgs) {
     load(context.get(apiContext).client.GET("/admin/dashboard")),
     getConfig(context),
   ]);
-  return { dashboard, semesters: config.semesters };
+  // Day labels are fixed here, once, so server and browser render the same
+  // dates even across midnight.
+  return {
+    dashboard,
+    semesters: config.semesters,
+    trend: trendRows(dashboard.trend, Date.now()),
+  };
 }
 
 function Figure({
@@ -35,14 +41,19 @@ function Figure({
 
 const sum = (values: number[]) => values.reduce((a, b) => a + b, 0);
 
-/** Day labels for the trend table, newest first; the API sends oldest first. */
-function trendRows(trend: {
-  days: number;
-  statistics: number[];
-  votes: number[];
-  uploads: number[];
-}) {
-  const today = Date.now();
+/**
+ * Rows for the trend table, newest first; the API sends one bucket per
+ * Seoul day, oldest first, ending today.
+ */
+function trendRows(
+  trend: {
+    days: number;
+    statistics: number[];
+    votes: number[];
+    uploads: number[];
+  },
+  today: number,
+) {
   return trend.statistics
     .map((_, i) => ({
       day: formatDate(
@@ -56,7 +67,7 @@ function trendRows(trend: {
 }
 
 export default function Dashboard({ loaderData }: Route.ComponentProps) {
-  const { dashboard: d, semesters } = loaderData;
+  const { dashboard: d, semesters, trend } = loaderData;
   return (
     <>
       <section
@@ -155,7 +166,7 @@ export default function Dashboard({ loaderData }: Route.ComponentProps) {
                 </tr>
               </thead>
               <tbody>
-                {trendRows(d.trend).map((row) => (
+                {trend.map((row) => (
                   <tr key={row.day}>
                     <td>{row.day}</td>
                     <td>{row.statistics}</td>

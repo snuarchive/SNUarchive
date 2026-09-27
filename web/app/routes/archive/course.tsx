@@ -326,7 +326,10 @@ export default function Course({
   const sections = pollActive ? [poll, stats, reports] : [stats, reports, poll];
 
   return (
-    <article className={page.detail}>
+    // Keyed by course: the layout keeps this route mounted across courses, and
+    // the uncontrolled forms would otherwise carry one course's input into
+    // the next.
+    <article key={course.id} className={page.detail}>
       <header className={cx(ui.panel, page.header)}>
         <div>
           <p>

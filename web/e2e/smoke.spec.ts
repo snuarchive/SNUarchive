@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { ACCOUNTS, resetMock, signIn } from "./helpers";
+import { APP_ORIGIN } from "./origins";
 
 test.beforeEach(async ({ request }) => {
   await resetMock(request);
@@ -48,4 +49,23 @@ test("pages hydrate and navigate without errors", async ({ page }) => {
   await page.getByRole("link", { name: "Archive", exact: true }).click();
   await expect(page).toHaveURL("/");
   expect(errors).toEqual([]);
+});
+
+test("admin actions refuse non-admins before reaching the API", async ({
+  page,
+}) => {
+  await signIn(page, ACCOUNTS.student);
+  const posts: [string, Record<string, string>][] = [
+    ["/admin/users/lookup", { userId: "2" }],
+    ["/admin/logs/clear", {}],
+    ["/admin/review/comments", { commentId: "1" }],
+  ];
+  for (const [path, form] of posts) {
+    const response = await page.request.post(path, {
+      form,
+      headers: { Origin: APP_ORIGIN },
+      maxRedirects: 0,
+    });
+    expect(response.status(), path).toBe(403);
+  }
 });

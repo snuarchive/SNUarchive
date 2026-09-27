@@ -52,10 +52,17 @@ export const GROUPS = [
   },
 ] as const;
 
-// Every admin page loads through here, so the check runs on client-side
-// navigations too.
-export async function loader({ context }: Route.LoaderArgs) {
-  await requireAdmin(context);
+// Server middleware runs for every request under /admin, actions included;
+// a parent loader alone would not guard the child routes' actions.
+export const middleware: Route.MiddlewareFunction[] = [
+  async ({ context }) => {
+    await requireAdmin(context);
+  },
+];
+
+// Forces a server round trip, and so the middleware, on client-side
+// navigations between admin pages.
+export function loader() {
   return null;
 }
 
