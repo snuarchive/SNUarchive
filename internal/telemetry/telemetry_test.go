@@ -65,3 +65,18 @@ func TestOTelSetupWithoutExporters(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestOTelSetupWithEmptyService(t *testing.T) {
+	t.Setenv("OTEL_TRACES_EXPORTER", "none")
+	t.Setenv("OTEL_METRICS_EXPORTER", "none")
+	var buf bytes.Buffer
+	_, shutdown, err := telemetry.Setup(context.Background(), &buf, telemetry.Options{
+		Format: "json", Level: slog.LevelInfo, OTel: true, Service: "", Version: "",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := shutdown(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+}

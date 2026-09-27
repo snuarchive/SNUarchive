@@ -48,10 +48,14 @@ func Setup(ctx context.Context, w io.Writer, o Options) (*slog.Logger, func(cont
 	}
 
 	// OTEL_SERVICE_NAME and OTEL_RESOURCE_ATTRIBUTES win over our defaults.
-	ours := resource.NewSchemaless(
-		attribute.String("service.name", o.Service),
-		attribute.String("service.version", o.Version),
-	)
+	var attrs []attribute.KeyValue
+	if o.Service != "" {
+		attrs = append(attrs, attribute.String("service.name", o.Service))
+	}
+	if o.Version != "" {
+		attrs = append(attrs, attribute.String("service.version", o.Version))
+	}
+	ours := resource.NewSchemaless(attrs...)
 	res, err := resource.Merge(resource.Default(), ours)
 	if err == nil {
 		res, err = resource.Merge(res, resource.Environment())
