@@ -15,6 +15,8 @@
 | `make run` | 현재 셸 환경변수로 서버 실행 |
 | `make migrate` | `DATABASE_URL`에 마이그레이션 적용 |
 
+되돌리기(`snuarchive migrate down`)는 실수 방지를 위해 `--yes`를 요구한다: `--yes` 없이 실행하면 어떤 마이그레이션이 롤백될지만 stderr에 출력하고 아무것도 되돌리지 않는다.
+
 `make run`/`make migrate`는 환경변수를 셸에서 읽는다. 최소 개발 설정 예:
 
     export APP_ENV=development DEV_LOGIN_ENABLED=true APP_ORIGIN=http://localhost:5173 \

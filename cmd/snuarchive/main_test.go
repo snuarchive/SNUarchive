@@ -60,12 +60,54 @@ func TestMigrateUpStatusDown(t *testing.T) {
 	if code != 0 || !strings.Contains(stdout, "applied") {
 		t.Fatalf("status: %d %q", code, stdout)
 	}
-	code, stdout, _ = runCLI(ctx, lookup, "migrate", "down")
+	code, stdout, _ = runCLI(ctx, lookup, "migrate", "down", "--yes")
 	if code != 0 || !strings.Contains(stdout, "rolled back") {
 		t.Fatalf("down: %d %q", code, stdout)
 	}
 	if code, _, _ := runCLI(ctx, lookup, "migrate", "sideways"); code != 2 {
 		t.Fatalf("bad subcommand: %d", code)
+	}
+}
+
+func TestMigrateDownWithoutYesRefusesToRollBack(t *testing.T) {
+	ctx := context.Background()
+	lookup := env(map[string]string{"DATABASE_URL": pgtest.NewEmptyDatabase(t)})
+
+	code, _, stderr := runCLI(ctx, lookup, "migrate", "up")
+	if code != 0 {
+		t.Fatalf("up: %d %q", code, stderr)
+	}
+
+	code, stdout, stderr := runCLI(ctx, lookup, "migrate", "down")
+	if code != 1 || !strings.Contains(stderr, "00001_init.sql") || !strings.Contains(stderr, "--yes") {
+		t.Fatalf("down without --yes: %d %q %q", code, stdout, stderr)
+	}
+
+	code, stdout, _ = runCLI(ctx, lookup, "migrate", "status")
+	if code != 0 || !strings.Contains(stdout, "applied") {
+		t.Fatalf("status after refused down: %d %q", code, stdout)
+	}
+}
+
+func TestMigrateDownWithoutYesWhenNothingApplied(t *testing.T) {
+	ctx := context.Background()
+	lookup := env(map[string]string{"DATABASE_URL": pgtest.NewEmptyDatabase(t)})
+
+	code, stdout, stderr := runCLI(ctx, lookup, "migrate", "down")
+	if code != 1 {
+		t.Fatalf("down with nothing applied: %d %q %q", code, stdout, stderr)
+	}
+}
+
+func TestMigrateYesRejectedExceptForDown(t *testing.T) {
+	ctx := context.Background()
+	lookup := env(map[string]string{"DATABASE_URL": pgtest.NewEmptyDatabase(t)})
+
+	if code, _, _ := runCLI(ctx, lookup, "migrate", "up", "--yes"); code != 2 {
+		t.Fatalf("migrate up --yes: %d", code)
+	}
+	if code, _, _ := runCLI(ctx, lookup, "migrate", "status", "--yes"); code != 2 {
+		t.Fatalf("migrate status --yes: %d", code)
 	}
 }
 

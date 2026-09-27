@@ -24,7 +24,7 @@
 | O16 | Vercel 함수에서 클라이언트 IP 추출 방법 확인. `TRUSTED_PROXIES`만 쓰기로 했으나 Vercel 프록시의 주소 대역이 공개·고정인지, 함수가 받는 연결 주소가 무엇인지 모름 | Vercel 배포 필요 | 개발자: 프리뷰에서 `RemoteAddr`와 `X-Forwarded-For`를 기록해 확인. 대역을 특정할 수 없으면 설정 방식 재결정 필요 | Vercel 배포의 IP 수집 | 열림 |
 | O10 | 동료 제안서(`schema.sql`, `openapi.yaml`) 수정본을 제안자와 검토 | 제안자와 합의 필요 | 팀 리뷰 | 계약 확정 | 열림 |
 | O17 | 투표 집계 기준 시각과 수정된 투표. `v_sitting_difficulty`는 `votes.created_at`으로 거르므로, `votes_counted_from` 이전에 투표한 사용자가 나중에 투표를 바꿔도 계속 제외된다. 기준을 `updated_at`(최신 평가)으로 할지 `created_at`으로 할지 결정 | 설계 결정 필요 | 팀 결정 | 4단계 투표 수정 동작 | 열림 |
-| O18 | `snuarchive migrate down`은 확인 없이 00001까지 되돌린다(모든 테이블 삭제). 확인 플래그를 요구할지 결정 | 운영 동작 결정 필요 | 팀 결정 | 안전한 운영 | 열림 |
+| O18 | `snuarchive migrate down`은 확인 없이 00001까지 되돌린다(모든 테이블 삭제). 확인 플래그를 요구할지 결정. 2026-09-28 사용자 결정: --yes 플래그 요구로 구현. | 운영 동작 결정 필요 | 팀 결정 | 안전한 운영 | 닫힘 |
 | O19 | 클라이언트가 보낸 `X-Request-ID`를 어떤 호출자에게서든 받아들인다(로그 상관관계가 흐려질 수 있음). 신뢰 프록시에서 온 것만 받을지, 항상 새로 만들지 결정 | 보안·동작 결정 필요 | 팀 결정 | – | 열림 |
 | O20 | Compose 네트워크 서브넷 `172.30.0.0/24`와 `TRUSTED_PROXIES`가 하드코딩되어 VM의 네트워크와 겹칠 수 있음(O8 참고). 선택지: Caddy에 고정 주소를 주고 그 /32만 신뢰 | VM 네트워크 확인 필요 | 운영자 + 팀 | – | 열림 |
 | O21 | 6단계 선행 조건: graceful shutdown이 15초 제한을 넘겨 멈출 수 있다(defer된 `pool.Close`가 핸들러를 기다림). Docker 기본 stop 유예는 10초. 6단계 전에 제한 초과 시 `srv.Close()` 호출 또는 요청 BaseContext 취소, compose에 `stop_grace_period` 설정 | 6단계 작업 | 개발자, 6단계 | 6단계 | 열림 |

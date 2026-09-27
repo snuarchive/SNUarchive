@@ -14,6 +14,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/pressly/goose/v3"
+
 	"github.com/snuarchive/snuarchive/internal/config"
 	"github.com/snuarchive/snuarchive/internal/db"
 	"github.com/snuarchive/snuarchive/internal/db/dbq"
@@ -30,7 +32,7 @@ const usage = `usage: snuarchive <command>
 commands:
   serve             run the HTTP server
   migrate up        apply pending migrations
-  migrate down      roll back the most recent migration
+  migrate down --yes   roll back the most recent migration
   migrate status    list migrations and whether they are applied
   version           print the build version
 `
@@ -64,9 +66,22 @@ func run(ctx context.Context, args []string, lookup config.LookupFunc, stdout, s
 // the environment exists. Point it at a direct connection, not a
 // transaction-mode pooler.
 func migrate(ctx context.Context, args []string, lookup config.LookupFunc, stdout, stderr io.Writer) int {
-	if len(args) != 1 || (args[0] != "up" && args[0] != "down" && args[0] != "status") {
+	if len(args) == 0 || len(args) > 2 {
 		fmt.Fprint(stderr, usage)
 		return 2
+	}
+	sub := args[0]
+	if sub != "up" && sub != "down" && sub != "status" {
+		fmt.Fprint(stderr, usage)
+		return 2
+	}
+	yes := false
+	if len(args) == 2 {
+		if sub != "down" || args[1] != "--yes" {
+			fmt.Fprint(stderr, usage)
+			return 2
+		}
+		yes = true
 	}
 	url, _ := lookup("DATABASE_URL")
 	if strings.TrimSpace(url) == "" {
@@ -80,7 +95,7 @@ func migrate(ctx context.Context, args []string, lookup config.LookupFunc, stdou
 	}
 	defer m.Close()
 
-	switch args[0] {
+	switch sub {
 	case "up":
 		results, err := m.Up(ctx)
 		for _, r := range results {
@@ -94,6 +109,25 @@ func migrate(ctx context.Context, args []string, lookup config.LookupFunc, stdou
 			fmt.Fprintln(stdout, "no pending migrations")
 		}
 	case "down":
+		if !yes {
+			statuses, err := m.Status(ctx)
+			if err != nil {
+				fmt.Fprintln(stderr, "migrate down:", err)
+				return 1
+			}
+			var latest *goose.MigrationStatus
+			for _, s := range statuses {
+				if s.State == goose.StateApplied {
+					latest = s
+				}
+			}
+			if latest == nil {
+				fmt.Fprintln(stderr, "migrate down: no migrations applied")
+				return 1
+			}
+			fmt.Fprintf(stderr, "would roll back  %s; re-run with --yes to confirm\n", latest.Source.Path)
+			return 1
+		}
 		r, err := m.Down(ctx)
 		if err != nil {
 			fmt.Fprintln(stderr, "migrate down:", err)
