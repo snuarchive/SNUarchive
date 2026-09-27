@@ -108,7 +108,10 @@ func (p *parser) origin(key string) string {
 		p.fail(key, "must be an origin such as https://archive.example.com")
 		return ""
 	}
-	return u.Scheme + "://" + u.Host
+	// Match the Origin header browsers send: the CSRF check compares exactly.
+	scheme, host := strings.ToLower(u.Scheme), strings.ToLower(u.Host)
+	defaultPort := map[string]string{"http": ":80", "https": ":443"}[scheme]
+	return scheme + "://" + strings.TrimSuffix(host, defaultPort)
 }
 
 func (p *parser) sessionKeys(key string) [][]byte {

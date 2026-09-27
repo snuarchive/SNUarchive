@@ -169,6 +169,26 @@ func TestNormalization(t *testing.T) {
 	}
 }
 
+// Browsers send Origin with a lower-case scheme and host and no default
+// port, and the CSRF check compares it exactly.
+func TestOriginMatchesBrowserForm(t *testing.T) {
+	cases := map[string]string{
+		"HTTPS://Archive.Example.com:443/": "https://archive.example.com",
+		"http://localhost:80":              "http://localhost",
+		"http://localhost:8088":            "http://localhost:8088",
+		"https://archive.example.com:80":   "https://archive.example.com:80",
+	}
+	for in, want := range cases {
+		c, _, err := load(t, with(minimal(), "APP_ORIGIN", in))
+		if err != nil {
+			t.Fatalf("%s: %v", in, err)
+		}
+		if c.AppOrigin != want {
+			t.Errorf("%s: origin = %q, want %q", in, c.AppOrigin, want)
+		}
+	}
+}
+
 func TestWarnsWhenRetentionPrecedesArchive(t *testing.T) {
 	env := with(minimal(),
 		"LOG_RETENTION_ENABLED", "true", "LOG_RETENTION_DAYS", "30",
