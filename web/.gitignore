@@ -9,3 +9,6 @@
 # Playwright
 /playwright-report/
 /test-results/
+
+# Contract symlink into the go-backend worktree (not committed)
+/api/openapi.yaml

@@ -22,5 +22,6 @@
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "strict": true
-  }
+  },
+  "exclude": ["mock-api", "build", "node_modules"]
 }

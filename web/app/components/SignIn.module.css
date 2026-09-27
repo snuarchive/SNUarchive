@@ -1,0 +1,50 @@
+.tile {
+  display: grid;
+  min-height: calc(100vh - 52px);
+  place-items: center;
+  background: var(--background-base);
+  text-align: center;
+}
+
+.copy {
+  display: grid;
+  gap: 18px;
+  justify-items: center;
+  width: min(720px, calc(100vw - 32px));
+  padding: 80px 24px;
+}
+
+.copy h1 {
+  margin: 0;
+  color: var(--brand-red);
+  font-size: clamp(44px, 9vw, 64px);
+  font-weight: 800;
+  line-height: 1.05;
+}
+
+.copy p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 18px;
+}
+
+.heroAction {
+  min-height: 48px;
+  padding: 0 24px;
+  font-size: 16px;
+}
+
+.devLogin {
+  display: flex;
+  align-items: end;
+  gap: 8px;
+  width: min(420px, 100%);
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px dashed var(--line);
+  text-align: left;
+}
+
+.devLogin label {
+  flex: 1;
+}

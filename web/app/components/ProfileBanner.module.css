@@ -1,0 +1,58 @@
+.banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
+  padding: 12px 32px;
+  border-bottom: 1px solid var(--soft-line);
+  background: var(--background-surface);
+}
+
+.copy {
+  display: grid;
+  gap: 2px;
+  min-width: 220px;
+  color: var(--text-primary);
+}
+
+.copy span {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.form select,
+.form input {
+  height: 38px;
+  width: auto;
+}
+
+.form input {
+  width: 148px;
+}
+
+@media (max-width: 734px) {
+  .banner {
+    padding: 12px 16px;
+  }
+
+  .form {
+    width: 100%;
+  }
+
+  .form select {
+    flex: 1 1 auto;
+  }
+
+  .form input {
+    flex: 1 1 auto;
+    width: auto;
+  }
+}

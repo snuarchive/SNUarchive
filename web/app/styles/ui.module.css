@@ -1,0 +1,124 @@
+/* Shared controls and panels. Combine with cx(): cx(ui.button, ui.primary). */
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.primary {
+  background: var(--brand-red);
+  color: var(--text-primary);
+}
+
+.primary:not(:disabled):hover {
+  background: var(--brand-red-hover);
+}
+
+.primary:not(:disabled):active {
+  background: var(--brand-red-active);
+}
+
+.subtle {
+  background: var(--control-grey);
+  color: var(--text-primary);
+}
+
+.subtle:not(:disabled):hover {
+  background: var(--control-grey-hover);
+}
+
+.danger {
+  border: 1px solid var(--danger);
+  background: transparent;
+  color: var(--danger);
+}
+
+.iconButton {
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  background: var(--control-grey);
+  color: var(--text-primary);
+  font-size: 20px;
+}
+
+.muted {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+/* The bordered surface shared by the search pane, headers and sections. */
+.panel {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--background-surface);
+}
+
+.sectionBlock {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  padding: 20px;
+}
+
+.sectionTitle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.sectionTitle h2 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.sectionTitle > span,
+.sectionTitle p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.sectionTitle > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.emptySmall {
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.fieldError {
+  margin: 0;
+  color: var(--danger);
+  font-size: 13px;
+}
+
+.more {
+  justify-self: center;
+  min-width: 128px;
+}
+
+@media (max-width: 734px) {
+  .sectionBlock {
+    padding: 16px;
+  }
+}

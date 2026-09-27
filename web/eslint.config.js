@@ -11,6 +11,8 @@ export default defineConfig([
     ".react-router/",
     "playwright-report/",
     "test-results/",
+    // A separate package with its own checks.
+    "mock-api/",
   ]),
   js.configs.recommended,
   tseslint.configs.recommended,

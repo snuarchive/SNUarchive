@@ -1,0 +1,83 @@
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.65fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.card {
+  align-content: start;
+  overflow: visible;
+  padding-inline: 24px;
+}
+
+.summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.summary::-webkit-details-marker {
+  display: none;
+}
+
+.toggle {
+  flex: 0 0 auto;
+  border: 1px solid var(--line);
+  background: var(--control-grey);
+}
+
+.toggle svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.2;
+  transition: transform 0.24s ease;
+}
+
+.summary:hover .toggle {
+  background: var(--control-grey-hover);
+}
+
+.card[open] .toggle svg {
+  transform: rotate(180deg);
+}
+
+.body {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+  padding: 4px 6px 6px;
+}
+
+.scoreStrip {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(72px, 1fr));
+  gap: 8px;
+}
+
+.body input:focus-visible,
+.body select:focus-visible,
+.body textarea:focus-visible {
+  outline-offset: 1px;
+}
+
+.submitRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 108px;
+  gap: 12px;
+  align-items: end;
+}
+
+@media (max-width: 734px) {
+  .grid,
+  .submitRow {
+    grid-template-columns: 1fr;
+  }
+
+  .scoreStrip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
