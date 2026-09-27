@@ -1,5 +1,12 @@
 import { useEffect, useRef } from "react";
-import { Form, Outlet, useLocation, useParams, useSubmit } from "react-router";
+import {
+  Form,
+  Link,
+  Outlet,
+  useLocation,
+  useParams,
+  useSubmit,
+} from "react-router";
 
 import { apiContext, load } from "~/api/client.server";
 import { CourseItem } from "~/components/CourseItem";
@@ -147,7 +154,12 @@ export default function ArchiveLayout({ loaderData }: Route.ComponentProps) {
                     className={s.homeSection}
                     aria-label={title}
                   >
-                    <h3>{title}</h3>
+                    <div className={s.homeHead}>
+                      <h3>{title}</h3>
+                      {title === "즐겨찾기" && (
+                        <Link to="/me#favorites">모두 보기 · 순서 바꾸기</Link>
+                      )}
+                    </div>
                     {items.map((course) => (
                       <CourseItem
                         key={course.id}

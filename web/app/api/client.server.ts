@@ -2,7 +2,11 @@ import createClient, { type Middleware } from "openapi-fetch";
 import { createContext, data } from "react-router";
 
 import { env } from "~/lib/env.server";
+import type { ProposedPaths } from "./proposed";
 import type { components, paths } from "./schema";
+
+/** The contract plus endpoints this app has proposed to the backend. */
+type ApiPaths = paths & ProposedPaths;
 
 export type Schemas = components["schemas"];
 export type ApiError = Schemas["Error"]["error"];
@@ -33,6 +37,7 @@ export class ApiSession {
   readonly client;
   readonly setCookies: string[] = [];
   private readonly jar: Map<string, string>;
+  private readonly forwardedFor: string | null;
 
   constructor(request: Request) {
     const incoming = parseCookieHeader(request.headers.get("Cookie"));
@@ -41,7 +46,12 @@ export class ApiSession {
         incoming.has(name) ? [[name, incoming.get(name)!] as const] : [],
       ),
     );
-    this.client = createClient<paths>({ baseUrl: `${env.apiOrigin}/api/v1` });
+    // The client address as the front proxy saw it. The Go server trusts it
+    // only from this app (see docs/frontend/plan.md, 6).
+    this.forwardedFor = request.headers.get("X-Forwarded-For");
+    this.client = createClient<ApiPaths>({
+      baseUrl: `${env.apiOrigin}/api/v1`,
+    });
     this.client.use(this.middleware());
   }
 
@@ -54,6 +64,9 @@ export class ApiSession {
       onRequest: ({ request }) => {
         const cookie = [...this.jar].map(([k, v]) => `${k}=${v}`).join("; ");
         if (cookie) request.headers.set("Cookie", cookie);
+        if (this.forwardedFor) {
+          request.headers.set("X-Forwarded-For", this.forwardedFor);
+        }
         if (UNSAFE.has(request.method)) {
           const csrf = this.jar.get("snu_csrf");
           if (csrf) request.headers.set("X-CSRF-Token", csrf);

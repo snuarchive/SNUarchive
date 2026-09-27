@@ -121,6 +121,16 @@ export interface FavoriteRow {
   userId: number;
   courseId: number;
   createdAt: number;
+  /**
+   * Proposed extension: the viewer's own order, lower first. A new pin gets
+   * -createdAt so it goes first until the viewer reorders.
+   */
+  position: number;
+}
+
+/** Proposed extension: favourites in the viewer's order. */
+export function byFavoriteOrder(a: FavoriteRow, b: FavoriteRow): number {
+  return a.position - b.position || b.createdAt - a.createdAt;
 }
 
 export interface LogRow {

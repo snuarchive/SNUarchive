@@ -3,8 +3,12 @@ import { Form, useLocation } from "react-router";
 import { apiContext, failureOf, load, type Schemas } from "~/api/client.server";
 import { MoreLink, pageEndpoint } from "~/components/admin/MoreLink";
 import s from "~/components/admin/admin.module.css";
+import {
+  CoursePicker,
+  CourseSearchForm,
+} from "~/components/admin/CoursePicker";
 import { SittingFields } from "~/components/course/SittingFields";
-import { cursorOf, sittingOptions } from "~/lib/admin.server";
+import { courseSearch, cursorOf, sittingOptions } from "~/lib/admin.server";
 import { cx } from "~/lib/cx";
 import { errorMessage } from "~/lib/errors";
 import { FIGURE_NAMES, readNickname } from "~/lib/figures";
@@ -29,7 +33,11 @@ export async function loader({ request, context }: Route.LoaderArgs) {
     ),
     sittingOptions(context),
   ]);
-  return { page, ...options };
+  return {
+    page,
+    ...options,
+    courseResults: await courseSearch(request, context),
+  };
 }
 
 /** Figures for PATCH: every field is sent, an empty one clearing it. */
@@ -104,7 +112,7 @@ export async function action({ request, context }: Route.ActionArgs) {
 type Stat = Schemas["AdminStatistic"];
 
 export default function Statistics({ loaderData }: Route.ComponentProps) {
-  const { page, kinds, semesters, years } = loaderData;
+  const { page, kinds, semesters, courseResults } = loaderData;
   const location = useLocation();
   const list = usePagedList(
     page,
@@ -120,6 +128,7 @@ export default function Statistics({ loaderData }: Route.ComponentProps) {
     >
       <div className={ui.sectionTitle}>
         <h2 id="stats-heading">최근 통계량</h2>
+        <CourseSearchForm />
         <span>
           {list.items.length}건{list.cursor ? "+" : ""}
         </span>
@@ -133,7 +142,7 @@ export default function Statistics({ loaderData }: Route.ComponentProps) {
               key={stat.id}
               stat={stat}
               here={here}
-              {...{ kinds, semesters, years }}
+              {...{ kinds, semesters, courseResults }}
             />
           ))
         )}
@@ -157,13 +166,13 @@ function StatCard({
   here,
   kinds,
   semesters,
-  years,
+  courseResults,
 }: {
   stat: Stat;
   here: string;
   kinds: Schemas["AssessmentKind"][];
   semesters: { value: number; label: string }[];
-  years: number[];
+  courseResults: Schemas["CourseSummary"][];
 }) {
   const hidden = stat.hiddenAt !== null;
   return (
@@ -275,21 +284,10 @@ function StatCard({
         <Form method="post" className={s.list} preventScrollReset>
           <input type="hidden" name="redirectTo" value={here} />
           <input type="hidden" name="statisticId" value={stat.id} />
-          <label>
-            강의 ID
-            <input
-              name="courseId"
-              type="number"
-              min={1}
-              step={1}
-              required
-              defaultValue={stat.course.id}
-            />
-          </label>
+          <CoursePicker current={stat.course} serverResults={courseResults} />
           <SittingFields
             kinds={kinds}
             semesters={semesters}
-            years={years}
             defaults={{
               kindId: stat.sitting.kindId,
               number: stat.sitting.number,

@@ -93,3 +93,44 @@ test("user summary and ops pages render", async ({ page }) => {
     ).toBeVisible();
   }
 });
+
+test("a sitting is created for a course found by search", async ({ page }) => {
+  await page.goto("/admin/voting/sittings");
+  await page.getByLabel("강의 찾기").fill("선형대수학");
+  const option = page.getByRole("radio", { name: /선형대수학/ }).first();
+  await expect(option).toBeVisible();
+  await option.check();
+  // The only kind and year fields on this page belong to the create form.
+  await page
+    .getByRole("combobox", { name: "시험", exact: true })
+    .selectOption({ label: "기말" });
+  await page.getByRole("spinbutton", { name: "연도" }).fill("2025");
+  await page.getByRole("button", { name: "만들기", exact: true }).click();
+  await expectToast(page, "회차를 만들었습니다.");
+});
+
+test("the course picker works without JavaScript", async ({ browser }) => {
+  const context = await browser.newContext({ javaScriptEnabled: false });
+  const page = await context.newPage();
+  await signIn(page, ACCOUNTS.admin);
+  await page.goto("/admin/voting/sittings");
+  await page.getByLabel("강의 찾기").fill("선형대수학");
+  await page.getByRole("button", { name: "찾기" }).click();
+  await expect(page).toHaveURL(/courseQ=/);
+  await expect(
+    page.getByRole("radio", { name: /선형대수학/ }).first(),
+  ).toBeVisible();
+  await context.close();
+});
+
+test("a statistic moves to a course found by search", async ({ page }) => {
+  await page.goto("/admin/review/statistics");
+  const card = page.locator("article").first();
+  await card.getByText("다른 강의·시험으로 옮기기").click();
+  await card.getByLabel("강의 찾기").fill("선형대수학");
+  const option = card.getByRole("radio", { name: /선형대수학/ }).first();
+  await expect(option).toBeVisible();
+  await option.check();
+  await card.getByRole("button", { name: "옮기기" }).click();
+  await expectToast(page, "통계량을 옮겼습니다.");
+});

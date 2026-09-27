@@ -46,3 +46,60 @@ test("logout on every device signs this browser out too", async ({ page }) => {
     page.getByRole("link", { name: "Google로 로그인" }),
   ).toBeVisible();
 });
+
+test.describe("favourites order on /me", () => {
+  const titles = (page: import("@playwright/test").Page) =>
+    page.locator("#favorites li strong").allInnerTexts();
+
+  test("the ↓ button moves a favourite and the home list follows", async ({
+    page,
+  }) => {
+    await signIn(page, ACCOUNTS.student);
+    await page.getByRole("link", { name: "모두 보기 · 순서 바꾸기" }).click();
+    await expect(page).toHaveURL(/\/me#favorites$/);
+    const before = await titles(page);
+    expect(before.length).toBeGreaterThan(1);
+
+    await page.getByRole("button", { name: `${before[0]} 아래로` }).click();
+    await expect
+      .poll(() => titles(page))
+      .toEqual([before[1], before[0], ...before.slice(2)]);
+
+    await page.goto("/archive");
+    const home = page.getByRole("region", { name: "즐겨찾기" });
+    await expect(home.locator("article strong").first()).toHaveText(before[1]);
+  });
+
+  test("rows can be dragged", async ({ page }) => {
+    await signIn(page, ACCOUNTS.student);
+    await page.goto("/me");
+    const before = await titles(page);
+    const rows = page.locator("#favorites li");
+    await rows.nth(0).dragTo(rows.nth(2));
+    await expect
+      .poll(() => titles(page))
+      .toEqual([before[1], before[2], before[0], ...before.slice(3)]);
+    await page.reload();
+    expect(await titles(page)).toEqual([
+      before[1],
+      before[2],
+      before[0],
+      ...before.slice(3),
+    ]);
+  });
+
+  test("the buttons work without JavaScript", async ({ browser }) => {
+    const context = await browser.newContext({ javaScriptEnabled: false });
+    const page = await context.newPage();
+    await signIn(page, ACCOUNTS.student);
+    await page.goto("/me");
+    const before = await titles(page);
+    await page.getByRole("button", { name: `${before[1]} 위로` }).click();
+    expect(await titles(page)).toEqual([
+      before[1],
+      before[0],
+      ...before.slice(2),
+    ]);
+    await context.close();
+  });
+});

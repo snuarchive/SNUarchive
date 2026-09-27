@@ -10,6 +10,7 @@ import { catalogScenarios } from "./scenarios/catalog";
 import { consoleScenarios } from "./scenarios/console";
 import { contributeScenarios } from "./scenarios/contribute";
 import { mockControlScenarios } from "./scenarios/mock";
+import { proposedScenarios } from "./scenarios/proposed";
 import { sessionScenarios } from "./scenarios/session";
 
 // test/globalSetup.ts prints how to restore the symlink when it is missing.
@@ -130,6 +131,7 @@ describe.skipIf(!specExists)(
     });
 
     sessionScenarios(h);
+    proposedScenarios(h);
     catalogScenarios(h);
     contributeScenarios(h);
     adminModerationScenarios(h);

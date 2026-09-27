@@ -410,7 +410,6 @@ export default function Course({
                   report={report}
                   kinds={kinds}
                   semesters={semesters}
-                  years={years}
                 />
               ))
             )}

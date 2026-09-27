@@ -14,7 +14,6 @@ type Props = {
   report: Report;
   kinds: Schemas["AssessmentKind"][];
   semesters: { value: number; label: string }[];
-  years: number[];
 };
 
 const STATUS_LABELS: Record<Report["status"], string> = {
@@ -57,7 +56,7 @@ const FIGURES = [
   ["maxScore", "만점"],
 ] as const;
 
-export function ReportReviewCard({ report, kinds, semesters, years }: Props) {
+export function ReportReviewCard({ report, kinds, semesters }: Props) {
   const location = useLocation();
   const pending = report.status === "pending";
   const action = `/admin/reports/${report.id}/review`;
@@ -101,7 +100,6 @@ export function ReportReviewCard({ report, kinds, semesters, years }: Props) {
             <SittingFields
               kinds={kinds}
               semesters={semesters}
-              years={years}
               defaults={{
                 kindId: report.kindId,
                 number: report.number,

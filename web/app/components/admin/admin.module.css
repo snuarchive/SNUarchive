@@ -183,3 +183,44 @@
     font-size: 13px;
   }
 }
+
+.picker {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.picker legend {
+  margin-bottom: 7px;
+  padding: 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.pickerOptions {
+  display: grid;
+  gap: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.pickerOption {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--soft-line);
+  border-radius: 4px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.pickerOption:has(input:checked) {
+  border-color: var(--brand-red);
+}
+
+.pickerOption small {
+  color: var(--text-muted);
+}

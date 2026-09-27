@@ -9,7 +9,8 @@ import {
 } from "../auth";
 import type { Ctx } from "../domain";
 import { log, signIn } from "../domain";
-import { confirmationRequired, FieldErrors } from "../errors";
+import { ApiError, confirmationRequired, FieldErrors, malformed } from "../errors";
+import { byFavoriteOrder } from "../state";
 import { int, paginate, readJson, str } from "../input";
 import { COLLEGES, configBody, LIMITS } from "../refdata";
 import * as v from "../views";
@@ -132,7 +133,7 @@ export function sessionRoutes(ctx: Ctx) {
     const user = me(c);
     const rows = ctx.state.favorites
       .filter((f) => f.userId === user.id)
-      .sort((a, b) => b.createdAt - a.createdAt);
+      .sort(byFavoriteOrder);
     return c.json(
       paginate(c, rows, (f) =>
         v.courseSummary(ctx, ctx.catalog.byId.get(f.courseId)!),
@@ -140,11 +141,33 @@ export function sessionRoutes(ctx: Ctx) {
     );
   });
 
+  // Proposed extension, not in the contract yet: set the favourites order.
+  r.put("/me/favorites/order", guard(ctx, "write"), async (c) => {
+    const user = me(c);
+    const body = (await c.req.json().catch(() => null)) as { ids?: unknown } | null;
+    const ids = body?.ids;
+    if (!Array.isArray(ids) || !ids.every((id) => Number.isInteger(id))) {
+      throw malformed("ids must be an array of course ids");
+    }
+    const mine = ctx.state.favorites.filter((f) => f.userId === user.id);
+    const same =
+      ids.length === mine.length &&
+      new Set(ids).size === ids.length &&
+      mine.every((f) => ids.includes(f.courseId));
+    if (!same) {
+      throw new ApiError(422, "VALIDATION_FAILED", "즐겨찾기 목록과 맞지 않습니다.", {
+        fields: [{ field: "ids", code: "INVALID_FAVORITE_ORDER" }],
+      });
+    }
+    for (const f of mine) f.position = ids.indexOf(f.courseId);
+    return c.body(null, 204);
+  });
+
   r.get("/me/favorites/ids", guard(ctx, "user"), (c) => {
     const user = me(c);
     const ids = ctx.state.favorites
       .filter((f) => f.userId === user.id)
-      .sort((a, b) => b.createdAt - a.createdAt)
+      .sort(byFavoriteOrder)
       .map((f) => f.courseId);
     return c.json({ ids });
   });

@@ -13,7 +13,11 @@ export type SittingDefaults = {
 type Props = {
   kinds: Schemas["AssessmentKind"][];
   semesters: { value: number; label: string }[];
-  years: number[];
+  /**
+   * Years offered in a select. Omitted, the year is typed as a number (the
+   * admin forms, which can file any year).
+   */
+  years?: number[];
   defaults: SittingDefaults;
   /** Label for the kind select; the legacy forms said "시험 형태". */
   kindLabel?: string;
@@ -35,9 +39,8 @@ export function SittingFields({
 }: Props) {
   const [kindId, setKindId] = useState(defaults.kindId ?? kinds[0]?.id);
   const kind = kinds.find((k) => k.id === kindId);
-  const yearOptions = years.includes(defaults.year)
-    ? years
-    : [defaults.year, ...years];
+  const yearOptions =
+    years && !years.includes(defaults.year) ? [defaults.year, ...years] : years;
 
   return (
     <>
@@ -80,13 +83,26 @@ export function SittingFields({
       <div className={s.termRow}>
         <label>
           연도
-          <select name="year" defaultValue={defaults.year}>
-            {yearOptions.map((year) => (
-              <option key={year} value={year}>
-                {year}
-              </option>
-            ))}
-          </select>
+          {yearOptions ? (
+            <select name="year" defaultValue={defaults.year}>
+              {yearOptions.map((year) => (
+                <option key={year} value={year}>
+                  {year}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              name="year"
+              type="number"
+              min={1980}
+              max={2200}
+              step={1}
+              inputMode="numeric"
+              required
+              defaultValue={defaults.year}
+            />
+          )}
         </label>
         <label>
           학기

@@ -28,7 +28,7 @@ export async function loader({ request, context }: Route.LoaderArgs) {
 }
 
 export default function Reports({ loaderData }: Route.ComponentProps) {
-  const { page, kinds, semesters, years } = loaderData;
+  const { page, kinds, semesters } = loaderData;
   const location = useLocation();
   const list = usePagedList(
     page,
@@ -57,7 +57,6 @@ export default function Reports({ loaderData }: Route.ComponentProps) {
               report={report}
               kinds={kinds}
               semesters={semesters}
-              years={years}
             />
           ))
         )}

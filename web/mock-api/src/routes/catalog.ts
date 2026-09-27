@@ -16,6 +16,7 @@ import {
 } from "../input";
 import { kindById } from "../refdata";
 import type { SittingRow } from "../state";
+import { byFavoriteOrder } from "../state";
 import * as v from "../views";
 
 const HOME_LIMIT = 10;
@@ -69,7 +70,7 @@ export function catalogRoutes(ctx: Ctx) {
 
     const favorites = ctx.state.favorites
       .filter((f) => f.userId === user.id)
-      .sort((a, b) => b.createdAt - a.createdAt)
+      .sort(byFavoriteOrder)
       .map((f) => listed(f.courseId))
       .filter((x): x is CatalogCourse => !!x)
       .slice(0, HOME_LIMIT);

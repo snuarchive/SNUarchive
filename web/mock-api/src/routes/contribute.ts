@@ -77,10 +77,17 @@ export function contributeRoutes(ctx: Ctx) {
         (f) => f.userId === user.id && f.courseId === course.id,
       )
     ) {
+      const now = ctx.now();
       ctx.state.favorites.push({
         userId: user.id,
         courseId: course.id,
-        createdAt: ctx.now(),
+        createdAt: now,
+        position: Math.min(
+          -now,
+          ...ctx.state.favorites
+            .filter((f) => f.userId === user.id)
+            .map((f) => f.position - 1),
+        ),
       });
       log(ctx, user.id, "favorite_add", { courseId: course.id }, clientIp(c));
     }

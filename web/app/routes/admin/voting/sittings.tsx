@@ -3,8 +3,12 @@ import { Form, Link, useLocation, useSubmit } from "react-router";
 import { apiContext, failureOf, load, type Schemas } from "~/api/client.server";
 import { MoreLink, pageEndpoint } from "~/components/admin/MoreLink";
 import s from "~/components/admin/admin.module.css";
+import {
+  CoursePicker,
+  CourseSearchForm,
+} from "~/components/admin/CoursePicker";
 import { SittingFields } from "~/components/course/SittingFields";
-import { cursorOf, sittingOptions } from "~/lib/admin.server";
+import { courseSearch, cursorOf, sittingOptions } from "~/lib/admin.server";
 import { cx } from "~/lib/cx";
 import { errorMessage } from "~/lib/errors";
 import { flashContext } from "~/lib/flash.server";
@@ -47,7 +51,12 @@ export async function loader({ request, context }: Route.LoaderArgs) {
     ),
     sittingOptions(context),
   ]);
-  return { state, page, ...options };
+  return {
+    state,
+    page,
+    ...options,
+    courseResults: await courseSearch(request, context),
+  };
 }
 
 export async function action({ request, context }: Route.ActionArgs) {
@@ -135,7 +144,8 @@ function votingText(voting: Sitting["voting"]): string {
 }
 
 export default function Sittings({ loaderData }: Route.ComponentProps) {
-  const { state, page, kinds, semesters, years } = loaderData;
+  const { state, page, kinds, semesters, currentYear, courseResults } =
+    loaderData;
   const location = useLocation();
   const submit = useSubmit();
   const here = location.pathname + location.search;
@@ -201,23 +211,20 @@ export default function Sittings({ loaderData }: Route.ComponentProps) {
       >
         <div className={ui.sectionTitle}>
           <h2 id="create-heading">회차 만들기</h2>
+          <CourseSearchForm />
           <span>같은 회차가 이미 있으면 그 회차를 씁니다</span>
         </div>
         <Form method="post" className={s.list} preventScrollReset>
           <input type="hidden" name="redirectTo" value={here} />
           <input type="hidden" name="intent" value="create" />
-          <label>
-            강의 ID
-            <input name="courseId" type="number" min={1} step={1} required />
-          </label>
+          <CoursePicker serverResults={courseResults} />
           <SittingFields
             kinds={kinds}
             semesters={semesters}
-            years={years}
             defaults={{
               kindId: kinds[0]?.id ?? null,
               number: null,
-              year: years[1],
+              year: currentYear,
               semester: 1,
             }}
             kindLabel="시험"
