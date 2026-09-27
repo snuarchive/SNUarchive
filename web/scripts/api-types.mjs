@@ -33,3 +33,7 @@ const header =
   `${dirty ? " (with uncommitted changes)" : ""}.\n` +
   "// Regenerate with `pnpm api:types`; do not edit by hand.\n";
 writeFileSync(out, header + readFileSync(out, "utf8"));
+// The committed copy is Prettier-formatted; keep diffs to real changes.
+execFileSync("pnpm", ["exec", "prettier", "--write", out], {
+  stdio: "inherit",
+});

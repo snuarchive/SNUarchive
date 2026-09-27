@@ -142,7 +142,9 @@
 
 ## 6. 백엔드 계약 확인 필요
 
-목업을 만들고 프론트를 붙이면서 `openapi.yaml`(v2.0.0-draft, go-backend `1ca4b38`)에서 정해지지 않았거나 어긋난 곳. 목업의 현재 처리는 `web/mock-api/README.md`.
+목업을 만들고 프론트를 붙이면서 `openapi.yaml`(v2.0.0-draft, go-backend `262973f`; 이후 변경은 `METHOD_NOT_ALLOWED` 추가뿐)에서 정해지지 않았거나 어긋난 곳. 목업의 현재 처리는 `web/mock-api/README.md`.
+
+2026-09-28, 이 절의 내용을 백엔드 워크트리 루트 `.worktrees/go-backend/FRONTEND_REQUESTS.md`(미커밋)로 전달했다.
 
 **백엔드에 요청할 것 (사용자 결정)**
 - **즐겨찾기 순서(제안):** `PUT /me/favorites/order`, 본문 `{ "ids": [강의 id, …] }` — 사용자의 즐겨찾기 전체를 원하는 순서로. 정확히 같은 집합이 아니면 422(`VALIDATION_FAILED`, `ids` 필드, 코드 제안 `INVALID_FAVORITE_ORDER`), 성공 204, CSRF 필요. `/me/favorites`, `/me/favorites/ids`, `/courses/home`의 `favorites`는 이 순서를 따르고, 새로 추가한 즐겨찾기는 맨 앞. 프론트 타입은 `web/app/api/proposed.ts`, 목업 구현과 테스트는 `web/mock-api`(`src/routes/session.ts`, `test/scenarios/proposed.ts`).
