@@ -136,3 +136,34 @@
 - 대시보드의 최근 N일 추이는 차트 없이 합계와 날짜별 표(접어 둠)로 보여 준다.
 - 관리자 마감·기준 시각 입력(`datetime-local`)은 서울 시간으로 읽고 쓴다.
 - 새 관리자 기능의 배치(묶음 탭 아래 하위 탭, 확인 페이지)는 기존 관리자 화면의 스타일(카드, 수정 그리드, "더 보기")을 따른다.
+- loader·action의 `request.url`은 클라이언트 이동 때 `/_.data`, `/경로.data?_routes=…` 같은 원래 요청 주소가 그대로 온다. 페이지 주소는 `app/lib/url.server.ts`의 `pageUrl()`로만 읽는다.
+
+## 6. 백엔드 계약 확인 필요
+
+목업을 만들고 프론트를 붙이면서 `openapi.yaml`(v2.0.0-draft, go-backend `1ca4b38`)에서 정해지지 않았거나 어긋난 곳. 목업의 현재 처리는 `web/mock-api/README.md`.
+
+**프론트가 직접 영향받는 것**
+- 활동 로그 `ip`·`last_ip`: 모든 호출이 프론트 서버를 거치므로 `X-Forwarded-For` 전달·신뢰 규칙이 필요(5.1 P2).
+- `AdminPendingReport.fileUrl`의 기준 경로(5.1 P3).
+- `/config`에 개발 로그인 사용 여부가 없음(프론트는 자체 환경변수로 처리).
+- OAuth 콜백 뒤 `/?auth=…`로 돌아올 때 원래 보던 페이지로 돌아갈 방법이 없음(로그인 후 항상 `/`).
+
+**계약 문서 보완**
+- 본문을 받는 대부분의 작업에 400(`MALFORMED_REQUEST`)이 선언되지 않음. `adminFindUserByEmail`, `adminGrantAdmin`도 같음.
+- `maxLength: 500` 필드가 있는데 422가 없는 작업: 업로드 반려 `reviewNote`, 통계 숨김 `reason`, 투표 요청 반려 `note`.
+- 본문 전체에 걸린 오류(`NOTHING_SUBMITTED`, `minProperties`)의 `FieldError.field` 값이 정의되지 않음.
+- `adminDeleteLogs`: `allOf`로 합쳐져 `{token}`만 보내도 `minProperties: 1`을 통과함.
+- `WINDOW_INVERTED`를 내는 조건이 없음. `GET /admin/logs`에는 422가 없음.
+- 검색 토큰이 필드 경계를 넘어 일치해도 되는지(설계의 `search_text` 연결 방식이면 넘어감).
+- 이름 마스킹 예시 `김**수`가 기존 규칙(3글자는 `김*수`)과 다름.
+- 현재 학기 경계(몇 월부터 몇 학기인지)가 없음.
+- 집계 정의: `withProfile`(단과대·입학년도 중 무엇), 대시보드 `admins`와 `LAST_ADMIN_PROTECTED`에 로그인한 적 없는 환경변수 관리자를 세는지, `mostRequested`의 "not-yet-open"에 종료된 회차가 들어가는지.
+- 투표 기준 시각(cutoff)을 표의 생성 시각과 수정 시각 중 무엇과 비교하는지, 미래 시각을 거절하는지.
+- 관리자가 아닌 계정의 회수가 404인지 204인지.
+- 순서: 열린 상태가 아닌 회차 목록 정렬, 업로드의 413·415·422 우선순위, 승인의 404·409·422 우선순위.
+- multipart에서 `number: null`을 표현할 방법(빈 문자열로 볼지).
+- 승인 시 번호 있는 종류에서 번호 없는 종류로 바꿀 때 기존 번호를 어떻게 처리할지.
+- 단과대 목록이 계약에 없음(`/config.colleges` 값의 출처).
+- 탈퇴 시 그 사용자의 열린 투표 요청·즐겨찾기 처리.
+- 강의 상세의 첫 한줄평 페이지 크기.
+- `devLogin`에 CSRF·Origin 검사가 적용되는지.
