@@ -9,7 +9,8 @@
 ## 1. 목표와 범위
 
 레거시(Vercel Node 함수 + Firestore)를 **Go 서버 + PostgreSQL 18**로 다시 만든다. React 프론트엔드는 별도 작업이며,
-이 백엔드는 수정된 `openapi.yaml`을 계약으로 제공한다.
+이 백엔드는 **`docs/api/openapi.yaml`**(v2.0.0-draft, 제안서 수정본)을 계약으로 제공한다.
+API 세부(경로, 스키마, 에러 코드)는 그 파일이 기준이고, 이 문서의 5.2는 요약이다.
 
 범위 밖:
 - 강의 식별 규칙(원본 분반 → course 매핑) 확정 (O9). 임시 구현만 둔다.
@@ -159,7 +160,7 @@ db/migrations/         goose SQL
   - state 검증 → 토큰 교환 → id_token 검증(서명, iss, aud, exp) → `email_verified`와 `@snu.ac.kr` 확인.
   - 사용자 upsert. `last_seen_at`, `last_ip`를 갱신하고 env 관리자 표시를 붙인다.
   - `login` 로그(ip 포함)를 남긴다.
-  - 세션 쿠키와 CSRF 쿠키를 설정하고 `/`로 리다이렉트한다. 실패 시 `/?auth=denied|error`.
+  - 세션 쿠키와 CSRF 쿠키를 설정하고 `/?auth=ok`로 리다이렉트한다. 실패 시 SNU 외 계정은 `/?auth=forbidden`, 그 밖은 `/?auth=error`(현행과 같은 값).
 - 세션 쿠키 `snu_session`: `base64url(payload).sig`
   - payload = `{uid, exp, ep}`
   - `SESSION_KEYS`의 첫 키로 서명하고 모든 키로 검증한다.
@@ -198,6 +199,11 @@ db/migrations/         goose SQL
 - **사용자**
   - `GET /me`: `suggestedAdmissionYear`, `calendar.currentTerm` 포함, 투표 한도 필드 제거
   - `PATCH /me`, `DELETE /me`, `POST /me/logout-all`
+- **운영 상태**
+  - `GET /admin/sittings?votingState=open|closed|never|any`: 투표 관리 화면
+  - `GET /admin/jobs`: 잡별 on/off(환경변수 값)와 마지막 실행 결과. API로 켜고 끄지는 않는다.
+  - `GET /admin/logs/archive-runs`: Drive 보관 이력
+- **확인 헤더**: 탈퇴와 로그 전체 비우기는 `X-Confirm-Delete: true`가 필요하다. 없으면 428 `CONFIRMATION_REQUIRED`.
 - **개발**: `POST /auth/dev-login`
 - **내부**: `POST /internal/jobs/{name}`
 - **제거**
@@ -207,7 +213,8 @@ db/migrations/         goose SQL
   - `DELETE /comments/{id}`의 작성자 삭제 허용: 관리자 전용 `DELETE /admin/comments/{id}`로 옮긴다.
 - **에러**: 제안서 `Error{code, message, details}`.
   - `FieldError.code` 정정: `VALUE_BELOW_REPORTED_SCORE` → `VALUE_ABOVE_MAX_SCORE`.
-  - 추가 코드: `INVALID_ASSESSMENT_NUMBER`, `VOTING_NOT_OPEN`, `ENV_ADMIN_PROTECTED`, `EXPORT_TOO_LARGE`, `DELETE_PREVIEW_MISMATCH`.
+  - 추가 코드: `INVALID_ASSESSMENT_NUMBER`(필드), `VOTING_NOT_OPEN`, `VOTING_REQUEST_EXISTS`, `VOTING_REQUEST_NOT_OPEN`, `NOT_REQUEST_OWNER`, `ENV_ADMIN_PROTECTED`, `EXPORT_TOO_LARGE`, `DELETE_PREVIEW_MISMATCH`, `CONFIRMATION_REQUIRED`, `JOB_DISABLED`, `JOB_ALREADY_RUNNING`, `INTERNAL`.
+  - 에러 본문에 `requestId`를 넣는다(`X-Request-ID` 헤더와 같은 값).
   - 제거 코드: `VOTE_QUOTA_EXHAUSTED`, `RATE_LIMITED`.
 
 ### 5.3 업로드 흐름
