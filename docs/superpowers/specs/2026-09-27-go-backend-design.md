@@ -66,6 +66,7 @@ API 세부(경로, 스키마, 에러 코드)는 그 파일이 기준이고, 이 
 | 테스트 격리 | 테스트마다 템플릿 DB 복제. `-short`면 DB 테스트 건너뜀, 아니면 Docker 없을 때 실패 |
 | sqlc | `go tool` 의존성(cgo, gcc 필요) |
 | 구현 방식 | 서브에이전트 구동. 도중 결정은 open-items에 기록 후 건너뛰고 단계 끝에 모아서 질문 |
+| 투표 제외 기준 시각 | 제거(2026-09-28). 대안인 "시험 이후 투표 개시(개시 예약)"는 회차마다 시험 일자가 필요한데, 모든 시험의 일자를 하나하나 수집해 입력할 수 없다는 한계를 먼저 해결해야 하므로 보류(O25) |
 
 ## 3. 구조
 
@@ -147,7 +148,7 @@ db/migrations/         goose SQL
   | assignment | 과제 | yes | 20 | 과제 {n} |
   | other | 기타 | no | – | 기타 |
 
-- `exam_sittings(id, course_id, kind_id, number smallint NULL, year, semester, voting_opened_at NULL, voting_closes_at NULL, voting_ended_at NULL, votes_counted_from NULL, created_at)`
+- `exam_sittings(id, course_id, kind_id, number smallint NULL, year, semester, voting_opened_at NULL, voting_closes_at NULL, voting_ended_at NULL, created_at)`
   - `UNIQUE NULLS NOT DISTINCT (course_id, kind_id, number, year, semester)`
   - 번호 규칙(numbered면 1..max, 아니면 NULL)은 트리거와 앱 검증으로 강제한다.
   - 열림 여부 = `voting_opened_at IS NOT NULL AND voting_ended_at IS NULL AND (voting_closes_at IS NULL OR voting_closes_at > now())`
@@ -158,7 +159,7 @@ db/migrations/         goose SQL
 - `voting_requests(id, sitting_id, user_id, note ≤100자 NULL, status open|fulfilled|rejected|cancelled, created_at, resolved_at, resolved_by)`
   - 부분 유니크: `(sitting_id, user_id) WHERE status = 'open'`
   - 관리자가 개설하면 해당 회차의 open 요청이 모두 fulfilled, 반려하면 rejected가 된다. 이후 다시 요청할 수 있다.
-- 뷰 `v_sitting_difficulty`: 회차별 표 수, 평균(소수 1자리), 1~5 분포. `votes_counted_from`을 반영한다.
+- 뷰 `v_sitting_difficulty`: 회차별 표 수, 평균(소수 1자리), 1~5 분포. 해당 회차의 모든 투표를 집계한다.
 
 ### 4.4 기여
 - `stat_reports`: `sitting_id` 참조 + 제안서 필드·CHECK(`values_non_decreasing`, 만점 이하, 0 이상, 비어 있지 않음, 출처 정합성, 숨김 정합성).
@@ -205,7 +206,6 @@ db/migrations/         goose SQL
   - `POST /admin/sittings/{id}/voting` (`closesAt` NULL 허용): 개설 또는 재개설
   - `PATCH /admin/sittings/{id}/voting` (마감 변경)
   - `POST /admin/sittings/{id}/voting/close`
-  - `PUT /admin/sittings/{id}/vote-cutoff`
   - `GET /admin/voting-requests` (회차별 묶음, 요청 수 순)
   - `POST /admin/voting-requests/{sittingId}/reject`
   - 회차 생성·개설을 한 번에 하는 `POST /admin/courses/{id}/sittings`
@@ -234,7 +234,7 @@ db/migrations/         goose SQL
 - **내부**: `POST /internal/jobs/{name}`
 - **제거**
   - `/courses/{id}/assessments/*` 경로
-  - 평가 병합(`assessments/merge`)과 표 이동(`votes/move`): 회차 모델에서 불필요. 잘못된 회차는 통계 이동과 cutoff로 처리한다.
+  - 평가 병합(`assessments/merge`)과 표 이동(`votes/move`): 회차 모델에서 불필요. 잘못된 회차는 통계 이동으로 처리한다.
   - `/admin/search/refresh`
   - `DELETE /comments/{id}`의 작성자 삭제 허용: 관리자 전용 `DELETE /admin/comments/{id}`로 옮긴다.
 - **에러**: 제안서 `Error{code, message, details}`.
