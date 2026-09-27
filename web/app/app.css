@@ -151,3 +151,8 @@ a {
     font-size: 15px;
   }
 }
+
+/* Submit buttons that only matter without JavaScript (selects auto-submit). */
+.js .no-js-only {
+  display: none;
+}
