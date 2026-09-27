@@ -1,0 +1,176 @@
+// Logic that does not need the contract file.
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { describe, expect, it } from "vitest";
+import { termAt } from "../src/calendar";
+import {
+  identityKey,
+  loadCatalog,
+  normalize,
+  searchCatalog,
+} from "../src/catalog";
+import { defaultOptions } from "../src/config";
+import { FieldErrors } from "../src/errors";
+import { sniff, barChartPng, textPdf } from "../src/files";
+import { checkFigures, completeFigures } from "../src/input";
+
+function fixtureCatalog() {
+  const dir = mkdtempSync(join(tmpdir(), "snu-mock-catalog-"));
+  const row = (
+    title: string,
+    instructor: string,
+    department: string,
+    n: string,
+    year: number,
+    semester: number,
+  ) => ({
+    course_title: title,
+    instructor,
+    class_time_json: [],
+    course_number: n,
+    lecture_number: "001",
+    department,
+    year,
+    semester,
+  });
+  writeFileSync(
+    join(dir, "2025-3.json"),
+    JSON.stringify([
+      row("미적분학 1", "김교수", "수리과학부", "M1", 2025, 3),
+      row("미적분학  1", "김교수", "물리·천문학부", "M1B", 2025, 3),
+      row("논리와 비판적 사고", "", "철학과", "P1", 2025, 3),
+      row("논리와 비판적 사고", "", "국어국문학과", "P2", 2025, 3),
+      row("응용 미적분", "박교수", "경제학부", "E1", 2025, 3),
+    ]),
+  );
+  writeFileSync(
+    join(dir, "2026-1.json"),
+    JSON.stringify([
+      row("미적분학 1", "김교수", "수리과학부", "M1", 2026, 1),
+      row("선형대수학", "김교수", "수리과학부", "L1", 2026, 1),
+    ]),
+  );
+  return loadCatalog(dir);
+}
+
+describe("catalog", () => {
+  const catalog = fixtureCatalog();
+  const byTitle = (t: string) => catalog.courses.filter((c) => c.title === t);
+
+  it("normalizes by removing whitespace and lower-casing", () => {
+    expect(normalize(" Calculus  1\t")).toBe("calculus1");
+    expect(identityKey("미적분학 1", "김교수", "x")).toBe(
+      identityKey("미적분학1", "김교수", "y"),
+    );
+  });
+
+  it("merges a course across departments and terms", () => {
+    const calc = byTitle("미적분학 1");
+    expect(calc).toHaveLength(1);
+    expect(calc[0].departments).toEqual(["물리·천문학부", "수리과학부"]);
+    expect(calc[0].offerings.map((o) => `${o.year}-${o.semester}`)).toEqual([
+      "2026-1",
+      "2025-3",
+      "2025-3",
+    ]);
+    expect(calc[0].latestTerm).toEqual({ year: 2026, semester: 1 });
+  });
+
+  it("keys a course without an instructor on its department and shows '미정'", () => {
+    const logic = catalog.courses.filter(
+      (c) => c.title === "논리와 비판적 사고",
+    );
+    expect(logic).toHaveLength(2);
+    expect(logic.every((c) => c.instructor === "미정")).toBe(true);
+  });
+
+  it("assigns ids in identity-key order", () => {
+    const keys = catalog.courses.map((c) => c.identityKey);
+    expect(keys).toEqual([...keys].sort());
+    expect(catalog.courses.map((c) => c.id)).toEqual(
+      catalog.courses.map((_, i) => i + 1),
+    );
+  });
+
+  it("searches with AND over tokens and ranks title prefixes first", () => {
+    const titles = (q: string) => searchCatalog(catalog, q).map((c) => c.title);
+    expect(titles("미적분")).toEqual(["미적분학 1", "응용 미적분"]);
+    expect(titles("김교수 수리")).toEqual(["미적분학 1", "선형대수학"]);
+    expect(titles("미적분 경제")).toEqual(["응용 미적분"]);
+    expect(titles("철학과")).toEqual(["논리와 비판적 사고"]);
+    // Tokens never match across the title/instructor boundary.
+    expect(titles("1김")).toEqual([]);
+  });
+});
+
+describe("calendar", () => {
+  const at = (iso: string) => termAt(Date.parse(iso));
+  it("maps Seoul dates to terms", () => {
+    expect(at("2026-09-27T12:00:00+09:00")).toEqual({
+      year: 2026,
+      semester: 3,
+    });
+    expect(at("2026-03-01T00:00:00+09:00")).toEqual({
+      year: 2026,
+      semester: 1,
+    });
+    expect(at("2026-02-28T23:59:00+09:00")).toEqual({
+      year: 2025,
+      semester: 4,
+    });
+    expect(at("2026-07-15T00:00:00+09:00")).toEqual({
+      year: 2026,
+      semester: 2,
+    });
+    // 23:30 UTC on Aug 31 is already Sep 1 in Seoul.
+    expect(at("2026-08-31T23:30:00Z")).toEqual({ year: 2026, semester: 3 });
+  });
+});
+
+describe("statistic rules", () => {
+  const check = (f: Partial<Parameters<typeof completeFigures>[0]>) => {
+    const fe = new FieldErrors();
+    checkFigures(completeFigures(f), fe);
+    return fe.list;
+  };
+  it("accepts partial figures and treats omitted as null", () => {
+    expect(check({ q2: 50 })).toEqual([]);
+    expect(check({ q1: 10, q3: 30, maxScore: 30 })).toEqual([]);
+  });
+  it("rejects disorder, values over the maximum and empty submissions", () => {
+    expect(check({ q1: 30, q3: 10 })).toEqual([
+      { field: "q3", code: "QUARTILES_OUT_OF_ORDER" },
+    ]);
+    expect(check({ average: 12, maxScore: 10 })).toEqual([
+      { field: "average", code: "VALUE_ABOVE_MAX_SCORE" },
+    ]);
+    expect(check({})).toEqual([{ field: "", code: "NOTHING_SUBMITTED" }]);
+    expect(check({ q1: 0.125 })).toEqual([
+      { field: "q1", code: "VALUE_OUT_OF_RANGE" },
+    ]);
+  });
+});
+
+describe("files", () => {
+  it("sniffs by content, not by name", () => {
+    expect(sniff(barChartPng([1, 2]))).toBe("image/png");
+    expect(sniff(textPdf(["x"]))).toBe("application/pdf");
+    expect(sniff(new Uint8Array([0xff, 0xd8, 0xff, 0xe0]))).toBe("image/jpeg");
+    expect(sniff(Buffer.from("RIFF\0\0\0\0WEBPVP8 "))).toBe("image/webp");
+    expect(
+      sniff(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>')),
+    ).toBeNull();
+  });
+});
+
+describe("config", () => {
+  it("defaults match the documented environment", () => {
+    const o = defaultOptions();
+    expect(o).toMatchObject({
+      port: 8787,
+      appOrigin: "http://localhost:5173",
+      adminEmails: ["admin@snu.ac.kr"],
+    });
+  });
+});
