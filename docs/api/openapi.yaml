@@ -31,6 +31,9 @@ info:
 
     **Errors.** Every non-2xx JSON response is an `Error`. Clients switch on
     `error.code`; `error.message` is a Korean fallback, not UI copy.
+    A method the path does not support returns `405 METHOD_NOT_ALLOWED` with
+    an `Allow` header. `GET /healthz` and `GET /readyz` exist outside
+    `/api/v1` for container health checks and are not part of this contract.
 
 servers:
   - url: /api/v1
@@ -1911,6 +1914,7 @@ components:
         - CSRF_INVALID
         - ADMIN_REQUIRED
         - NOT_FOUND
+        - METHOD_NOT_ALLOWED
         - VALIDATION_FAILED
         - CONFIRMATION_REQUIRED
         - VOTING_ALREADY_OPEN
