@@ -88,7 +88,10 @@ db/migrations/         goose SQL
 2. **Vercel**: `api/index.go`가 `httpapi.New(deps)`를 감싼다. 스케줄러 없음. Vercel Cron이 `POST /api/v1/internal/jobs/{name}`을 호출하며 `Authorization: Bearer $CRON_SECRET`로 보호한다. 빌더의 `internal/` import 지원은 O3.
 3. **CLI**: `migrate`, `import`, `jobs run`은 어느 환경에서나 `DATABASE_URL`로 실행한다.
 
-잡 동시 실행 방지: 잡마다 `pg_try_advisory_lock`을 쓴다. 인스턴스가 여럿이어도 한 번만 실행된다.
+잡 동시 실행 방지: 잡 실행 동안 전용 커넥션에서 트랜잭션 하나를 열고 `pg_try_advisory_xact_lock(잡 키)`를 잡는다.
+인스턴스가 여럿이거나 VM 스케줄러와 cron이 겹쳐도 한 번만 실행된다. 세션 단위 `pg_try_advisory_lock`은
+트랜잭션 풀러(Supabase)에서 세션이 유지되지 않아 쓰지 않는다. 잠금을 못 잡으면 `skipped`(API는 409 `JOB_ALREADY_RUNNING`).
+잡의 실제 작업(배치 삭제 등)은 별도 커넥션의 짧은 트랜잭션들로 수행하고, 잠금 트랜잭션은 잡이 끝날 때 롤백한다.
 
 ## 4. 데이터 모델 (마이그레이션 v1)
 
