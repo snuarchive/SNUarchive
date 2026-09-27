@@ -114,6 +114,25 @@ type Log struct {
 
 func (c *Config) IsDevelopment() bool { return c.Env == Development }
 
+// LogValue lists only settings that are safe to log. The database URL is left
+// out because it may carry a password. The value receiver makes slog use this
+// for both Config and *Config.
+func (c Config) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("env", string(c.Env)),
+		slog.String("app_origin", c.AppOrigin),
+		slog.String("http_addr", c.HTTPAddr),
+		slog.Group("db", "max_conns", c.DB.MaxConns, "pooler_mode", c.DB.PoolerMode),
+		slog.String("storage_driver", c.Storage.Driver),
+		slog.Bool("dev_login_enabled", c.DevLoginEnabled),
+		slog.Bool("scheduler_enabled", c.SchedulerEnabled),
+		slog.Bool("retention_enabled", c.Retention.Enabled),
+		slog.Bool("archive_enabled", c.Archive.Enabled),
+		slog.Bool("otel_enabled", c.OTelEnabled),
+		slog.Group("log", "format", c.Log.Format, "level", c.Log.Level.String()),
+	)
+}
+
 // Load reads the configuration through lookup. It reports every invalid
 // variable at once and, separately, warnings for settings that work but are
 // probably not what the operator meant.

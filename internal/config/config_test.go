@@ -229,3 +229,42 @@ func TestS3(t *testing.T) {
 		t.Fatalf("s3 = %+v", c.Storage.S3)
 	}
 }
+
+func TestLogValueHidesSecrets(t *testing.T) {
+	c := config.Config{
+		Env:       config.Production,
+		AppOrigin: "https://archive.example.com",
+		DB:        config.DB{URL: "postgres://u:db-password-secret@db:5432/app", MaxConns: 7},
+		Session:   config.Session{Keys: [][]byte{[]byte("session-key-secret-0123456789abcdef")}},
+		Google:    config.Google{ClientID: "google-client-id", ClientSecret: "google-client-secret"},
+		Storage: config.Storage{Driver: "s3", S3: config.S3{
+			AccessKeyID: "s3-access-key-secret", SecretAccessKey: "s3-secret-access-key-secret",
+		}},
+		CronSecret: "cron-secret-0123456789abcdef0123456789",
+		GDrive: config.GDrive{
+			ServiceAccountJSON: []byte(`{"private_key":"service-account-secret"}`),
+			OAuthClientSecret:  "gdrive-client-secret",
+			OAuthRefreshToken:  "gdrive-refresh-token-secret",
+		},
+	}
+	var buf bytes.Buffer
+	log := slog.New(slog.NewJSONHandler(&buf, nil))
+	log.Info("value", "config", c)
+	log.Info("pointer", "config", &c)
+
+	out := buf.String()
+	secrets := []string{
+		"db-password-secret", "session-key-secret-0123456789abcdef", "google-client-secret",
+		"s3-access-key-secret", "s3-secret-access-key-secret", "cron-secret-0123456789abcdef0123456789",
+		`{"private_key":"service-account-secret"}`, "service-account-secret",
+		"gdrive-client-secret", "gdrive-refresh-token-secret",
+	}
+	for _, s := range secrets {
+		if strings.Contains(out, s) || strings.Contains(out, base64.StdEncoding.EncodeToString([]byte(s))) {
+			t.Errorf("log contains secret %q:\n%s", s, out)
+		}
+	}
+	if strings.Count(out, `"app_origin":"https://archive.example.com"`) != 2 {
+		t.Errorf("both lines must carry the non-secret fields:\n%s", out)
+	}
+}
