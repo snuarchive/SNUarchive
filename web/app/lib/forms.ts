@@ -50,3 +50,30 @@ const BLOCKED_NUMBER_KEYS = new Set(["e", "E", "+", "-"]);
 export function blockNumberKeys(event: React.KeyboardEvent<HTMLInputElement>) {
   if (BLOCKED_NUMBER_KEYS.has(event.key)) event.preventDefault();
 }
+
+/** The legacy clean-up: digits and the first decimal point only. */
+export function cleanNumberText(text: string): string {
+  return text.replace(/[^\d.]/g, "").replace(/(\..*)\./g, "$1");
+}
+
+/**
+ * Pasted text gets the same clean-up the legacy fields applied on input, so
+ * "1e2" or "-3" cannot slip in by paste. The field takes the cleaned value
+ * and React hears it as ordinary input.
+ */
+export function cleanNumberPaste(
+  event: React.ClipboardEvent<HTMLInputElement>,
+) {
+  const text = event.clipboardData.getData("text");
+  const cleaned = cleanNumberText(text);
+  if (cleaned === text) return;
+  event.preventDefault();
+  const input = event.currentTarget;
+  // Set through the native setter so React's change tracking sees it.
+  const setter = Object.getOwnPropertyDescriptor(
+    HTMLInputElement.prototype,
+    "value",
+  )?.set;
+  setter?.call(input, cleaned);
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+}

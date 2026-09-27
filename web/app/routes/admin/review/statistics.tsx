@@ -14,7 +14,7 @@ import { errorMessage } from "~/lib/errors";
 import { FIGURE_NAMES, readNickname } from "~/lib/figures";
 import { flashContext } from "~/lib/flash.server";
 import { formatDate, termLabel } from "~/lib/format";
-import { blockNumberKeys } from "~/lib/forms";
+import { blockNumberKeys, cleanNumberPaste } from "~/lib/forms";
 import { back } from "~/lib/redirect.server";
 import { readSittingKey } from "~/lib/sittings";
 import { getConfig } from "~/lib/viewer.server";
@@ -219,6 +219,7 @@ function StatCard({
                 step="any"
                 inputMode="decimal"
                 onKeyDown={blockNumberKeys}
+                onPaste={cleanNumberPaste}
                 defaultValue={stat[name] ?? ""}
               />
             </label>

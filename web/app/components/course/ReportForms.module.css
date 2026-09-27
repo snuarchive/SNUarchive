@@ -51,6 +51,13 @@
   padding: 4px 6px 6px;
 }
 
+/* A label plus the error shown under it. */
+.field {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
 .scoreStrip {
   display: grid;
   grid-template-columns: repeat(6, minmax(72px, 1fr));

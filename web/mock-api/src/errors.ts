@@ -6,6 +6,7 @@ const DEFAULT_MESSAGES: Record<ErrorCode, string> = {
   CSRF_INVALID: "요청 검증에 실패했습니다. 페이지를 새로고침해 주세요.",
   ADMIN_REQUIRED: "관리자만 사용할 수 있습니다.",
   NOT_FOUND: "찾을 수 없습니다.",
+  METHOD_NOT_ALLOWED: "지원하지 않는 요청 방식입니다.",
   VALIDATION_FAILED: "입력값을 확인해 주세요.",
   CONFIRMATION_REQUIRED: "확인 헤더가 필요합니다.",
   VOTING_ALREADY_OPEN: "이미 투표가 진행 중입니다.",

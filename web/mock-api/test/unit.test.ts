@@ -174,3 +174,32 @@ describe("config", () => {
     });
   });
 });
+
+describe("unsupported methods", () => {
+  it("answer 405 with Allow on a known path", async () => {
+    const { createApp } = await import("../src/app");
+    const { app } = createApp();
+    const res = await app.request("/api/v1/me", { method: "PUT" });
+    expect(res.status).toBe(405);
+    expect(res.headers.get("Allow")).toBe("DELETE, GET, HEAD, PATCH");
+    const body = (await res.json()) as { error: { code: string } };
+    expect(body.error.code).toBe("METHOD_NOT_ALLOWED");
+  });
+
+  it("match path parameters", async () => {
+    const { createApp } = await import("../src/app");
+    const { app } = createApp();
+    const res = await app.request("/api/v1/courses/12/favorite", {
+      method: "POST",
+    });
+    expect(res.status).toBe(405);
+    expect(res.headers.get("Allow")).toBe("DELETE, PUT");
+  });
+
+  it("leave unknown paths at 404", async () => {
+    const { createApp } = await import("../src/app");
+    const { app } = createApp();
+    const res = await app.request("/api/v1/nope", { method: "GET" });
+    expect(res.status).toBe(404);
+  });
+});

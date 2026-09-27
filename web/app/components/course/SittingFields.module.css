@@ -14,11 +14,6 @@
   grid-template-columns: 1fr;
 }
 
-.error {
-  color: var(--danger);
-  font-size: 13px;
-}
-
 @media (max-width: 734px) {
   .kindRow,
   .termRow {

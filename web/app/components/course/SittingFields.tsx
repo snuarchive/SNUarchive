@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useId, useState } from "react";
+
+import { errorAttrs, FieldError } from "~/components/FieldError";
 
 import type { Schemas } from "~/api/types";
 import s from "./SittingFields.module.css";
@@ -39,6 +41,9 @@ export function SittingFields({
 }: Props) {
   const [kindId, setKindId] = useState(defaults.kindId ?? kinds[0]?.id);
   const kind = kinds.find((k) => k.id === kindId);
+  const idBase = useId();
+  const errorId = (name: string) => `${idBase}-${name}-error`;
+  const termError = errors.year ?? errors.semester;
   const yearOptions =
     years && !years.includes(defaults.year) ? [defaults.year, ...years] : years;
 
@@ -51,6 +56,7 @@ export function SittingFields({
             name="kindId"
             defaultValue={defaults.kindId ?? undefined}
             onChange={(event) => setKindId(Number(event.target.value))}
+            {...errorAttrs(errorId("kindId"), errors.kindId)}
           >
             {kinds.map((k) => (
               <option key={k.id} value={k.id}>
@@ -58,7 +64,6 @@ export function SittingFields({
               </option>
             ))}
           </select>
-          {errors.kindId && <span className={s.error}>{errors.kindId}</span>}
         </label>
         <label
           className={s.number}
@@ -76,15 +81,21 @@ export function SittingFields({
               kind?.numbered ? `1~${kind.maxNumber ?? ""}` : "퀴즈·과제·시험만"
             }
             defaultValue={defaults.number ?? ""}
+            {...errorAttrs(errorId("number"), errors.number)}
           />
-          {errors.number && <span className={s.error}>{errors.number}</span>}
         </label>
       </div>
+      <FieldError id={errorId("kindId")} message={errors.kindId} />
+      <FieldError id={errorId("number")} message={errors.number} />
       <div className={s.termRow}>
         <label>
           연도
           {yearOptions ? (
-            <select name="year" defaultValue={defaults.year}>
+            <select
+              name="year"
+              defaultValue={defaults.year}
+              {...errorAttrs(errorId("term"), termError)}
+            >
               {yearOptions.map((year) => (
                 <option key={year} value={year}>
                   {year}
@@ -101,12 +112,17 @@ export function SittingFields({
               inputMode="numeric"
               required
               defaultValue={defaults.year}
+              {...errorAttrs(errorId("term"), termError)}
             />
           )}
         </label>
         <label>
           학기
-          <select name="semester" defaultValue={defaults.semester}>
+          <select
+            name="semester"
+            defaultValue={defaults.semester}
+            {...errorAttrs(errorId("term"), termError)}
+          >
             {semesters.map((semester) => (
               <option key={semester.value} value={semester.value}>
                 {semester.label}
@@ -115,9 +131,7 @@ export function SittingFields({
           </select>
         </label>
       </div>
-      {(errors.year || errors.semester) && (
-        <span className={s.error}>{errors.year ?? errors.semester}</span>
-      )}
+      <FieldError id={errorId("term")} message={termError} />
     </>
   );
 }

@@ -1,9 +1,15 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Form } from "react-router";
 
 import type { Schemas } from "~/api/types";
+import { errorAttrs, FieldError } from "~/components/FieldError";
 import { cx } from "~/lib/cx";
-import { blockNumberKeys, useFailure, useResetOnSuccess } from "~/lib/forms";
+import {
+  blockNumberKeys,
+  cleanNumberPaste,
+  useFailure,
+  useResetOnSuccess,
+} from "~/lib/forms";
 import { useHydrated } from "~/lib/hydrated";
 import {
   DIRECT_DRAFT_KEY,
@@ -175,6 +181,8 @@ export function DirectReport({
 
   const values = failure?.values ?? {};
   const errors = failure?.fields ?? {};
+  const idBase = useId();
+  const errorId = (name: string) => `${idBase}-${name}-error`;
 
   return (
     <details
@@ -229,36 +237,39 @@ export function DirectReport({
         />
         <div className={s.scoreStrip}>
           {FIGURES.map(([name, label]) => (
-            <label key={name}>
-              {label}
-              <input
-                name={name}
-                type="number"
-                min={0}
-                step="any"
-                inputMode="decimal"
-                onKeyDown={blockNumberKeys}
-                defaultValue={values[name]}
-              />
-              {errors[name] && (
-                <span className={ui.fieldError}>{errors[name]}</span>
-              )}
-            </label>
+            <div key={name} className={s.field}>
+              <label>
+                {label}
+                <input
+                  name={name}
+                  type="number"
+                  min={0}
+                  step="any"
+                  inputMode="decimal"
+                  onKeyDown={blockNumberKeys}
+                  onPaste={cleanNumberPaste}
+                  defaultValue={values[name]}
+                  {...errorAttrs(errorId(name), errors[name])}
+                />
+              </label>
+              <FieldError id={errorId(name)} message={errors[name]} />
+            </div>
           ))}
         </div>
         <div className={s.submitRow}>
-          <label>
-            비고
-            <textarea
-              name="note"
-              rows={2}
-              maxLength={500}
-              defaultValue={values.note}
-            />
-            {errors.note && (
-              <span className={ui.fieldError}>{errors.note}</span>
-            )}
-          </label>
+          <div className={s.field}>
+            <label>
+              비고
+              <textarea
+                name="note"
+                rows={2}
+                maxLength={500}
+                defaultValue={values.note}
+                {...errorAttrs(errorId("note"), errors.note)}
+              />
+            </label>
+            <FieldError id={errorId("note")} message={errors.note} />
+          </div>
           <button
             className={cx(ui.button, ui.primary)}
             type="submit"

@@ -4,7 +4,7 @@ import type { Schemas } from "~/api/types";
 import { SittingFields } from "~/components/course/SittingFields";
 import { cx } from "~/lib/cx";
 import { formatDate, termLabel } from "~/lib/format";
-import { blockNumberKeys } from "~/lib/forms";
+import { blockNumberKeys, cleanNumberPaste } from "~/lib/forms";
 import ui from "~/styles/ui.module.css";
 import s from "./ReportReviewCard.module.css";
 
@@ -128,6 +128,7 @@ export function ReportReviewCard({ report, kinds, semesters }: Props) {
                   step="any"
                   inputMode="decimal"
                   onKeyDown={blockNumberKeys}
+                  onPaste={cleanNumberPaste}
                 />
               </label>
             ))}

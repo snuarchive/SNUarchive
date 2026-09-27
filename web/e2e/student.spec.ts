@@ -159,3 +159,38 @@ test("search and sign-in work without JavaScript", async ({ browser }) => {
   ).toBeVisible();
   await context.close();
 });
+
+test("field errors describe their input without renaming it", async ({
+  page,
+}) => {
+  await openCourse(page, OPEN_COURSE);
+  await page.getByText("직접 제보").click();
+  const form = page.locator("details", { hasText: "직접 제보" });
+  await form.getByRole("spinbutton", { name: "Q1", exact: true }).fill("60");
+  await form.getByRole("spinbutton", { name: "Q2", exact: true }).fill("40");
+  await form.getByRole("button", { name: "등록" }).click();
+  const q2 = form.getByRole("spinbutton", { name: "Q2", exact: true });
+  await expect(q2).toHaveAttribute("aria-invalid", "true");
+  await expect(q2).toHaveAccessibleDescription(/순서여야 합니다/);
+});
+
+test("pasted numbers are cleaned like typed ones", async ({ page }) => {
+  await openCourse(page, OPEN_COURSE);
+  await page.getByText("직접 제보").click();
+  const q1 = page
+    .locator("details", { hasText: "직접 제보" })
+    .getByRole("spinbutton", { name: "Q1", exact: true });
+  await q1.focus();
+  await q1.evaluate((el) => {
+    const data = new DataTransfer();
+    data.setData("text", "-1e2");
+    el.dispatchEvent(
+      new ClipboardEvent("paste", {
+        clipboardData: data,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+  });
+  await expect(q1).toHaveValue("12");
+});
