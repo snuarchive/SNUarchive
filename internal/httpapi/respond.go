@@ -34,8 +34,12 @@ func writeError(w http.ResponseWriter, r *http.Request, log *slog.Logger, err er
 	if !ok {
 		log.ErrorContext(r.Context(), "unhandled error", "err", err, "request_id", RequestID(r.Context()))
 		ae = apperr.New(apperr.Internal)
-	} else if ae.Status() >= 500 && ae.Cause() != nil {
-		log.ErrorContext(r.Context(), "server error", "code", ae.Code, "err", ae.Cause(), "request_id", RequestID(r.Context()))
+	} else if ae.Status() >= 500 {
+		if cause := ae.Cause(); cause != nil {
+			log.ErrorContext(r.Context(), "server error", "code", ae.Code, "err", cause, "request_id", RequestID(r.Context()))
+		} else {
+			log.ErrorContext(r.Context(), "server error", "code", ae.Code, "request_id", RequestID(r.Context()))
+		}
 	}
 	details := maps.Clone(ae.Details)
 	if len(ae.Fields) > 0 {

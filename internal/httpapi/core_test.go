@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -234,6 +235,33 @@ func TestWriteErrorHidesUnknownErrors(t *testing.T) {
 	rec := serve(rt, httptest.NewRequest(http.MethodGet, "/fail", nil))
 	if rec.Code != 500 || errorCode(t, rec) != "INTERNAL" || strings.Contains(rec.Body.String(), "EOF") {
 		t.Fatalf("%d %s", rec.Code, rec.Body.String())
+	}
+}
+
+// TestWriteErrorLogsServerErrorsWithoutCause covers design spec §7: every 5xx
+// must be logged with its request ID, even when the *apperr.Error carries no
+// wrapped cause (writeError must not rely on Cause() != nil to decide to log).
+func TestWriteErrorLogsServerErrorsWithoutCause(t *testing.T) {
+	var buf bytes.Buffer
+	log := slog.New(slog.NewTextHandler(&buf, nil))
+	rt := newRouter(Deps{
+		Config: &config.Config{AppOrigin: origin},
+		Logger: log,
+	})
+	rt.handle(http.MethodGet, "/internal", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		writeError(w, r, log, apperr.New(apperr.Internal))
+	}))
+
+	rec := serve(rt, httptest.NewRequest(http.MethodGet, "/internal", nil))
+	if rec.Code != 500 {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	reqID := rec.Header().Get("X-Request-ID")
+	if reqID == "" {
+		t.Fatal("missing request id")
+	}
+	if !strings.Contains(buf.String(), "server error") || !strings.Contains(buf.String(), reqID) {
+		t.Fatalf("log missing server error line or request id %q: %s", reqID, buf.String())
 	}
 }
 
