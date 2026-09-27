@@ -28,7 +28,7 @@ func testRouter() *router {
 // serve runs the router behind the same outer middleware New uses.
 func serve(rt *router, req *http.Request) *httptest.ResponseRecorder {
 	log := rt.deps.Logger
-	h := withRequestID(withClientIP(nil)(withAccessLog(log)(withRecover(log)(rt.mux))))
+	h := withRequestID(nil)(withClientIP(nil)(withAccessLog(log)(withRecover(log)(rt.mux))))
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 	return rec
@@ -58,22 +58,51 @@ func ok(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoCon
 func TestRequestID(t *testing.T) {
 	rt := testRouter()
 	rt.handle(http.MethodGet, "/x", http.HandlerFunc(ok))
+	trusted := []netip.Prefix{netip.MustParsePrefix("172.30.0.0/24")}
 
-	rec := serve(rt, httptest.NewRequest(http.MethodGet, "/x", nil))
+	serveWith := func(trusted []netip.Prefix, req *http.Request) *httptest.ResponseRecorder {
+		h := withRequestID(trusted)(rt.mux)
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		return rec
+	}
+	newReq := func(remoteAddr string) *http.Request {
+		req := httptest.NewRequest(http.MethodGet, "/x", nil)
+		req.RemoteAddr = remoteAddr
+		return req
+	}
+
+	rec := serveWith(trusted, newReq("203.0.113.9:5000"))
 	if !regexp.MustCompile(`^[0-9a-f]{32}$`).MatchString(rec.Header().Get("X-Request-ID")) {
 		t.Fatalf("generated id = %q", rec.Header().Get("X-Request-ID"))
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/x", nil)
+	// A valid incoming id from an untrusted peer is replaced.
+	req := newReq("203.0.113.9:5000")
 	req.Header.Set("X-Request-ID", "abc-123")
-	if got := serve(rt, req).Header().Get("X-Request-ID"); got != "abc-123" {
-		t.Fatalf("kept id = %q", got)
+	if got := serveWith(trusted, req).Header().Get("X-Request-ID"); got == "abc-123" {
+		t.Fatalf("untrusted peer's incoming id must be replaced, got %q", got)
 	}
 
-	req = httptest.NewRequest(http.MethodGet, "/x", nil)
+	// A valid incoming id from a trusted peer is kept.
+	req = newReq("172.30.0.3:5000")
+	req.Header.Set("X-Request-ID", "abc-123")
+	if got := serveWith(trusted, req).Header().Get("X-Request-ID"); got != "abc-123" {
+		t.Fatalf("trusted peer's valid id must be kept, got %q", got)
+	}
+
+	// An invalid incoming id from a trusted peer is still replaced.
+	req = newReq("172.30.0.3:5000")
 	req.Header.Set("X-Request-ID", "has spaces <script>")
-	if got := serve(rt, req).Header().Get("X-Request-ID"); got == "has spaces <script>" {
-		t.Fatal("invalid incoming id must be replaced")
+	if got := serveWith(trusted, req).Header().Get("X-Request-ID"); got == "has spaces <script>" {
+		t.Fatal("invalid incoming id must be replaced even from a trusted peer")
+	}
+
+	// With no trusted proxies configured, incoming ids are always replaced.
+	req = newReq("172.30.0.3:5000")
+	req.Header.Set("X-Request-ID", "abc-123")
+	if got := serveWith(nil, req).Header().Get("X-Request-ID"); got == "abc-123" {
+		t.Fatal("with no trusted proxies configured, incoming id must be replaced")
 	}
 }
 

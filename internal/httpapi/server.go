@@ -54,7 +54,7 @@ func New(d Deps) *Server {
 	h = withRecover(d.Logger)(h)
 	h = withAccessLog(d.Logger)(h)
 	h = withClientIP(d.Config.TrustedProxies)(h)
-	h = withRequestID(h)
+	h = withRequestID(d.Config.TrustedProxies)(h)
 	if d.Config.OTelEnabled {
 		h = otelhttp.NewHandler(h, "snuarchive")
 	}

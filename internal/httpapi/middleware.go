@@ -43,17 +43,26 @@ func ClientIP(ctx context.Context) netip.Addr {
 
 var validRequestID = regexp.MustCompile(`^[A-Za-z0-9._-]{1,64}$`)
 
-func withRequestID(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		id := r.Header.Get("X-Request-ID")
-		if !validRequestID.MatchString(id) {
-			var b [16]byte
-			_, _ = rand.Read(b[:])
-			id = hex.EncodeToString(b[:])
-		}
-		w.Header().Set("X-Request-ID", id)
-		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), requestIDKey, id)))
-	})
+// withRequestID honours an incoming X-Request-ID only when the direct peer
+// (RemoteAddr) is a trusted proxy; otherwise, and whenever the incoming value
+// fails format validation, it generates a new one. This keeps an untrusted
+// caller from injecting a request ID that would otherwise correlate logs
+// across hops it doesn't control.
+func withRequestID(trusted []netip.Prefix) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			id := r.Header.Get("X-Request-ID")
+			peer, ok := parsePeer(r.RemoteAddr)
+			fromTrustedPeer := ok && isTrusted(peer, trusted)
+			if !fromTrustedPeer || !validRequestID.MatchString(id) {
+				var b [16]byte
+				_, _ = rand.Read(b[:])
+				id = hex.EncodeToString(b[:])
+			}
+			w.Header().Set("X-Request-ID", id)
+			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), requestIDKey, id)))
+		})
+	}
 }
 
 // withClientIP honours X-Forwarded-For only when the direct peer is a trusted
@@ -70,16 +79,26 @@ func withClientIP(trusted []netip.Prefix) func(http.Handler) http.Handler {
 	}
 }
 
-func resolveClientIP(remoteAddr, xff string, trusted []netip.Prefix) netip.Addr {
+// parsePeer parses the host portion of RemoteAddr into a netip.Addr, the same
+// direct-peer parsing withClientIP and withRequestID both rely on to decide
+// trust.
+func parsePeer(remoteAddr string) (netip.Addr, bool) {
 	host, _, err := net.SplitHostPort(remoteAddr)
 	if err != nil {
 		host = remoteAddr
 	}
-	peer, err := netip.ParseAddr(host)
+	addr, err := netip.ParseAddr(host)
 	if err != nil {
+		return netip.Addr{}, false
+	}
+	return addr.Unmap(), true
+}
+
+func resolveClientIP(remoteAddr, xff string, trusted []netip.Prefix) netip.Addr {
+	peer, ok := parsePeer(remoteAddr)
+	if !ok {
 		return netip.Addr{}
 	}
-	peer = peer.Unmap()
 	if !isTrusted(peer, trusted) || strings.TrimSpace(xff) == "" {
 		return peer
 	}

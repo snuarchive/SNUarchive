@@ -240,7 +240,7 @@ db/migrations/         goose SQL
 - **에러**: 제안서 `Error{code, message, details}`.
   - `FieldError.code` 정정: `VALUE_BELOW_REPORTED_SCORE` → `VALUE_ABOVE_MAX_SCORE`.
   - 추가 코드: `INVALID_ASSESSMENT_NUMBER`(필드), `VOTING_NOT_OPEN`, `VOTING_REQUEST_EXISTS`, `VOTING_REQUEST_NOT_OPEN`, `NOT_REQUEST_OWNER`, `ENV_ADMIN_PROTECTED`, `EXPORT_TOO_LARGE`, `DELETE_PREVIEW_MISMATCH`, `CONFIRMATION_REQUIRED`, `JOB_DISABLED`, `JOB_ALREADY_RUNNING`, `INTERNAL`.
-  - 에러 본문에 `requestId`를 넣는다(`X-Request-ID` 헤더와 같은 값).
+  - 에러 본문에 `requestId`를 넣는다(`X-Request-ID` 헤더와 같은 값). 들어온 `X-Request-ID`는 직전 홉이 `TRUSTED_PROXIES`에 속할 때만 그대로 쓰고, 그 외에는 항상 새로 만든다.
   - 제거 코드: `VOTE_QUOTA_EXHAUSTED`, `RATE_LIMITED`.
 
 ### 5.3 업로드 흐름
