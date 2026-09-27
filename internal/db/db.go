@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib" // registers the "pgx" database/sql driver for goose
 	"github.com/pressly/goose/v3"
+	"github.com/pressly/goose/v3/lock"
 
 	"github.com/snuarchive/snuarchive/db/migrations"
 )
@@ -56,7 +57,14 @@ func NewMigrator(url string) (*Migrator, error) {
 	if err != nil {
 		return nil, fmt.Errorf("db: open for migrations: %w", err)
 	}
-	p, err := goose.NewProvider(goose.DialectPostgres, sqlDB, migrations.FS)
+	// The advisory lock makes concurrent `migrate up` runs wait for each
+	// other instead of racing on the same migrations.
+	locker, err := lock.NewPostgresSessionLocker()
+	if err != nil {
+		_ = sqlDB.Close()
+		return nil, fmt.Errorf("db: migration lock: %w", err)
+	}
+	p, err := goose.NewProvider(goose.DialectPostgres, sqlDB, migrations.FS, goose.WithSessionLocker(locker))
 	if err != nil {
 		_ = sqlDB.Close()
 		return nil, fmt.Errorf("db: migrations: %w", err)
