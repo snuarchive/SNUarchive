@@ -37,7 +37,6 @@ const (
 	ActivityActionVotingOpen           ActivityAction = "voting_open"
 	ActivityActionVotingUpdate         ActivityAction = "voting_update"
 	ActivityActionVotingClose          ActivityAction = "voting_close"
-	ActivityActionVoteCutoffSet        ActivityAction = "vote_cutoff_set"
 	ActivityActionVoteCast             ActivityAction = "vote_cast"
 	ActivityActionVotingRequestCreate  ActivityAction = "voting_request_create"
 	ActivityActionVotingRequestCancel  ActivityAction = "voting_request_cancel"
@@ -433,17 +432,16 @@ type Department struct {
 }
 
 type ExamSitting struct {
-	ID               int64
-	CourseID         int64
-	KindID           int16
-	Number           *int16
-	Year             int16
-	Semester         int16
-	VotingOpenedAt   *time.Time
-	VotingClosesAt   *time.Time
-	VotingEndedAt    *time.Time
-	VotesCountedFrom *time.Time
-	CreatedAt        time.Time
+	ID             int64
+	CourseID       int64
+	KindID         int16
+	Number         *int16
+	Year           int16
+	Semester       int16
+	VotingOpenedAt *time.Time
+	VotingClosesAt *time.Time
+	VotingEndedAt  *time.Time
+	CreatedAt      time.Time
 }
 
 type Favorite struct {

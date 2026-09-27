@@ -18,7 +18,7 @@ CREATE TYPE activity_action AS ENUM (
   'pending_report_create', 'pending_report_approve', 'pending_report_reject',
   'report_file_view',
   'sitting_create', 'voting_open', 'voting_update', 'voting_close',
-  'vote_cutoff_set', 'vote_cast',
+  'vote_cast',
   'voting_request_create', 'voting_request_cancel', 'voting_request_reject',
   'admin_grant', 'admin_revoke',
   'logs_export', 'logs_delete', 'logs_clear',
@@ -239,7 +239,6 @@ CREATE TABLE exam_sittings (
   voting_opened_at   timestamptz,
   voting_closes_at   timestamptz,
   voting_ended_at    timestamptz,
-  votes_counted_from timestamptz,
   created_at         timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT exam_sittings_pk        PRIMARY KEY (id),
   CONSTRAINT exam_sittings_u         UNIQUE NULLS NOT DISTINCT (course_id, kind_id, number, year, semester),
@@ -538,7 +537,6 @@ SELECT s.id                                    AS sitting_id,
 FROM      exam_sittings s
 LEFT JOIN votes v
        ON v.sitting_id = s.id
-      AND (s.votes_counted_from IS NULL OR v.created_at >= s.votes_counted_from)
 GROUP BY s.id;
 
 -- +goose Down

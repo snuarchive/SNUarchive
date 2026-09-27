@@ -194,9 +194,9 @@ func TestContentVersionBumps(t *testing.T) {
 	if v := version(); v != v0+2 {
 		t.Fatalf("after opening: %d, want %d", v, v0+2)
 	}
-	mustExec(t, pool, `UPDATE exam_sittings SET votes_counted_from = now() WHERE id = $1`, sitting)
+	mustExec(t, pool, `UPDATE exam_sittings SET kind_id = kind_id WHERE id = $1`, sitting)
 	if v := version(); v != v0+2 {
-		t.Fatalf("cutoff must not bump: %d", v)
+		t.Fatalf("unwatched column update must not bump: %d", v)
 	}
 }
 
@@ -226,10 +226,6 @@ func TestVotingViews(t *testing.T) {
 	}
 	if avg := scalar[float64](t, pool, `SELECT average_rating FROM v_sitting_difficulty WHERE sitting_id = $1`, sitting); avg != 4.0 {
 		t.Fatalf("average = %v", avg)
-	}
-	mustExec(t, pool, `UPDATE exam_sittings SET votes_counted_from = now() + interval '1 hour' WHERE id = $1`, sitting)
-	if c := count(); c != 0 {
-		t.Fatalf("cutoff should exclude the vote, got %d", c)
 	}
 	mustExec(t, pool, `UPDATE exam_sittings SET voting_ended_at = now() WHERE id = $1`, sitting)
 	if s := state(); s != "closed" {
