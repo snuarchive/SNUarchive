@@ -36,27 +36,52 @@ func originOnly() routeOption { return func(c *routeConfig) { c.csrf = csrfOrigi
 func noCSRF() routeOption { return func(c *routeConfig) { c.csrf = csrfNone } }
 
 type router struct {
-	mux     *http.ServeMux
-	deps    Deps
-	routes  []Route
-	allowed map[string][]string
+	mux    *http.ServeMux
+	deps   Deps
+	routes []Route
 }
 
 func newRouter(d Deps) *router {
-	rt := &router{mux: http.NewServeMux(), deps: d, allowed: map[string][]string{}}
-	rt.mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		writeError(w, r, d.Logger, apperr.New(apperr.NotFound))
-	}))
+	rt := &router{mux: http.NewServeMux(), deps: d}
+	rt.mux.Handle("/", http.HandlerFunc(rt.fallback))
 	return rt
+}
+
+var probeMethods = []string{
+	http.MethodGet, http.MethodHead, http.MethodPost, http.MethodPut,
+	http.MethodPatch, http.MethodDelete, http.MethodOptions,
+}
+
+// fallback answers requests no route matched. It asks the mux which other
+// methods would match the path, so 405 responses use the JSON error envelope.
+// A method-less pattern per path would do the same, but the mux panics when
+// one overlaps a wildcard route (/courses/home next to /courses/{courseId}).
+func (rt *router) fallback(w http.ResponseWriter, r *http.Request) {
+	probe := r.Clone(r.Context())
+	var allowed []string
+	for _, m := range probeMethods {
+		if m == r.Method {
+			continue
+		}
+		probe.Method = m
+		if _, pattern := rt.mux.Handler(probe); pattern != "/" {
+			allowed = append(allowed, m)
+		}
+	}
+	if len(allowed) == 0 {
+		writeError(w, r, rt.deps.Logger, apperr.New(apperr.NotFound))
+		return
+	}
+	slices.Sort(allowed)
+	w.Header().Set("Allow", strings.Join(allowed, ", "))
+	writeError(w, r, rt.deps.Logger, apperr.New(apperr.MethodNotAllowed))
 }
 
 func isSafe(method string) bool {
 	return method == http.MethodGet || method == http.MethodHead || method == http.MethodOptions
 }
 
-// handle registers method+path. The first registration of a path also adds a
-// method-less pattern for it, which the mux picks for any other method, so
-// 405 responses use the JSON error envelope.
+// handle registers method+path.
 func (rt *router) handle(method, path string, h http.Handler, opts ...routeOption) {
 	cfg := routeConfig{bodyLimit: defaultBodyLimit}
 	for _, o := range opts {
@@ -67,21 +92,5 @@ func (rt *router) handle(method, path string, h http.Handler, opts ...routeOptio
 	}
 	h = limitBody(cfg.bodyLimit)(h)
 	rt.mux.Handle(method+" "+path, h)
-	if _, seen := rt.allowed[path]; !seen {
-		rt.mux.Handle(path, rt.methodNotAllowed(path))
-	}
-	rt.allowed[path] = append(rt.allowed[path], method)
 	rt.routes = append(rt.routes, Route{Method: method, Path: path})
-}
-
-func (rt *router) methodNotAllowed(path string) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		methods := slices.Clone(rt.allowed[path])
-		if slices.Contains(methods, http.MethodGet) && !slices.Contains(methods, http.MethodHead) {
-			methods = append(methods, http.MethodHead)
-		}
-		slices.Sort(methods)
-		w.Header().Set("Allow", strings.Join(methods, ", "))
-		writeError(w, r, rt.deps.Logger, apperr.New(apperr.MethodNotAllowed))
-	})
 }

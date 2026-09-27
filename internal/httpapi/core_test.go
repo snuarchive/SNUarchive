@@ -275,3 +275,33 @@ func TestValidationErrorCarriesFields(t *testing.T) {
 		t.Fatalf("%d %s", rec.Code, rec.Body.String())
 	}
 }
+
+// TestMethodNotAllowedWithWildcardRoutes guards against the mux panicking when
+// a literal and a wildcard path share a prefix (the contract has
+// /courses/home next to /courses/{courseId}).
+func TestMethodNotAllowedWithWildcardRoutes(t *testing.T) {
+	rt := testRouter()
+	var hit string
+	rt.handle(http.MethodGet, "/x/{id}", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hit = "id:" + r.PathValue("id")
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	rt.handle(http.MethodGet, "/x/home", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hit = "home"
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	for path, want := range map[string]string{"/x/home": "home", "/x/7": "id:7"} {
+		hit = ""
+		if rec := serve(rt, httptest.NewRequest(http.MethodGet, path, nil)); rec.Code != http.StatusNoContent || hit != want {
+			t.Fatalf("GET %s: %d, hit %q, want %q", path, rec.Code, hit, want)
+		}
+	}
+	rec := serve(rt, httptest.NewRequest(http.MethodDelete, "/x/7", nil))
+	if rec.Code != 405 || errorCode(t, rec) != "METHOD_NOT_ALLOWED" {
+		t.Fatalf("405: %d %s", rec.Code, rec.Body.String())
+	}
+	if got := rec.Header().Get("Allow"); got != "GET, HEAD" {
+		t.Fatalf("Allow = %q", got)
+	}
+}
