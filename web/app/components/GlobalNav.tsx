@@ -1,6 +1,7 @@
 import { Form, Link, NavLink, useLocation } from "react-router";
 
 import { cx } from "~/lib/cx";
+import { signInHref } from "~/lib/signIn";
 import ui from "~/styles/ui.module.css";
 import s from "./GlobalNav.module.css";
 
@@ -9,7 +10,7 @@ type Props = {
 };
 
 export function GlobalNav({ me }: Props) {
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
   const inAdmin = pathname === "/admin" || pathname.startsWith("/admin/");
 
   return (
@@ -49,7 +50,10 @@ export function GlobalNav({ me }: Props) {
               </Form>
             </>
           ) : (
-            <a className={cx(ui.button, ui.primary)} href="/api/v1/auth/google">
+            <a
+              className={cx(ui.button, ui.primary)}
+              href={signInHref(pathname + search)}
+            >
               Google 로그인
             </a>
           )}

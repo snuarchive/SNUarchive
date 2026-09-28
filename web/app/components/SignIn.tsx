@@ -1,10 +1,13 @@
-import { Form } from "react-router";
+import { Form, useLocation } from "react-router";
 
 import { cx } from "~/lib/cx";
+import { signInHref } from "~/lib/signIn";
 import ui from "~/styles/ui.module.css";
 import s from "./SignIn.module.css";
 
 export function SignIn({ devLogin }: { devLogin: boolean }) {
+  const location = useLocation();
+  const here = location.pathname + location.search;
   return (
     <section className={s.tile}>
       <div className={s.copy}>
@@ -13,12 +16,13 @@ export function SignIn({ devLogin }: { devLogin: boolean }) {
         {/* A document navigation: the API redirects to Google. */}
         <a
           className={cx(ui.button, ui.primary, s.heroAction)}
-          href="/api/v1/auth/google"
+          href={signInHref(here)}
         >
           Google로 로그인
         </a>
         {devLogin && (
           <Form method="post" action="/dev-login" className={s.devLogin}>
+            <input type="hidden" name="next" value={here} />
             <label>
               개발용 로그인
               <input

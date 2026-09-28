@@ -136,7 +136,10 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
   const root = useRouteLoaderData<typeof loader>("root");
 
   if (isRouteErrorResponse(error) && error.status === 401) {
-    return <SignIn devLogin={root?.devLogin ?? false} />;
+    // Admin middleware throws the 401 before the root loader runs; its
+    // payload then says whether to show dev login.
+    const options = error.data as { devLogin?: boolean } | null;
+    return <SignIn devLogin={root?.devLogin ?? options?.devLogin ?? false} />;
   }
 
   let message = "오류";

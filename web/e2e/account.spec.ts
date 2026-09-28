@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { ACCOUNTS, expectToast, resetData, signIn } from "./helpers";
+import { TARGET } from "./origins";
 
 test.beforeEach(async ({ request }) => {
   await resetData(request);
@@ -45,6 +46,23 @@ test("logout on every device signs this browser out too", async ({ page }) => {
   await expect(
     page.getByRole("link", { name: "Google로 로그인" }),
   ).toBeVisible();
+});
+
+test("Google sign-in returns to the page it started from", async ({ page }) => {
+  test.skip(TARGET !== "mock", "uses the mock's stand-in for Google");
+  await page.goto("/me");
+  await page.getByRole("link", { name: "Google로 로그인" }).click();
+  await page.getByRole("link", { name: ACCOUNTS.student }).click();
+  await expectToast(page, "로그인되었습니다.");
+  await expect(page).toHaveURL("/me");
+});
+
+test("dev sign-in returns to the page it started from", async ({ page }) => {
+  await page.goto("/admin/logs/entries?action=login");
+  await page.getByPlaceholder("student@snu.ac.kr").fill(ACCOUNTS.admin);
+  await page.getByRole("button", { name: "로그인", exact: true }).click();
+  await expectToast(page, "로그인되었습니다.");
+  await expect(page).toHaveURL("/admin/logs/entries?action=login");
 });
 
 test.describe("favourites order on /me", () => {

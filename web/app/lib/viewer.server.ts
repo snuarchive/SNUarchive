@@ -1,6 +1,7 @@
 import { data, type RouterContextProvider } from "react-router";
 
 import { apiContext, load, type Schemas } from "~/api/client.server";
+import { env } from "~/lib/env.server";
 
 export type Me = Schemas["Me"];
 export type Config = Schemas["Config"];
@@ -27,12 +28,21 @@ export function getMe(
   return pending;
 }
 
-/** The signed-in viewer, or a 401 that the root renders as the sign-in screen. */
+/** What the sign-in screen needs when it renders without the root's data. */
+export type SignInOptions = { devLogin: boolean };
+
+/**
+ * The signed-in viewer, or a 401 that the root renders as the sign-in screen.
+ * Thrown from middleware, the 401 stops every loader, the root's included, so
+ * it carries the sign-in options itself.
+ */
 export async function requireMe(
   context: Readonly<RouterContextProvider>,
 ): Promise<Me> {
   const me = await getMe(context);
-  if (!me) throw data(null, { status: 401 });
+  if (!me) {
+    throw data<SignInOptions>({ devLogin: env.devLogin }, { status: 401 });
+  }
   return me;
 }
 
