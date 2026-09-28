@@ -79,7 +79,7 @@ func TestMigrateDownWithoutYesRefusesToRollBack(t *testing.T) {
 	}
 
 	code, stdout, stderr := runCLI(ctx, lookup, "migrate", "down")
-	if code != 1 || !strings.Contains(stderr, "00001_init.sql") || !strings.Contains(stderr, "--yes") {
+	if code != 1 || !strings.Contains(stderr, "00002_google_sub.sql") || !strings.Contains(stderr, "--yes") {
 		t.Fatalf("down without --yes: %d %q %q", code, stdout, stderr)
 	}
 

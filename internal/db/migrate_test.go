@@ -36,24 +36,66 @@ func TestMigrationsUpDownUp(t *testing.T) {
 	defer m.Close()
 
 	res, err := m.Up(ctx)
-	if err != nil || len(res) != 1 {
+	if err != nil || len(res) != 2 {
 		t.Fatalf("up: %d results, %v", len(res), err)
 	}
 	if n := publicTables(t, url); n != 21 {
 		t.Fatalf("after up: %d tables, want 21", n)
 	}
 	status, err := m.Status(ctx)
-	if err != nil || len(status) != 1 || status[0].State != "applied" {
+	if err != nil || len(status) != 2 || status[0].State != "applied" || status[1].State != "applied" {
 		t.Fatalf("status = %+v, %v", status, err)
 	}
-	if _, err := m.Down(ctx); err != nil {
-		t.Fatalf("down: %v", err)
+	for range 2 {
+		if _, err := m.Down(ctx); err != nil {
+			t.Fatalf("down: %v", err)
+		}
 	}
 	if n := publicTables(t, url); n != 0 {
 		t.Fatalf("after down: %d tables left", n)
 	}
 	if _, err := m.Up(ctx); err != nil {
 		t.Fatalf("second up: %v", err)
+	}
+}
+
+// Rolling back 00002 must not fail on an account that only its Google sub
+// kept alive: the old rules need an email on every live row, so such a row
+// is scrubbed. Deleting it would break the rows that reference it.
+func TestGoogleSubDownScrubsSubOnlyAccounts(t *testing.T) {
+	ctx := context.Background()
+	url := pgtest.NewEmptyDatabase(t)
+	m, err := db.NewMigrator(url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer m.Close()
+	if _, err := m.Up(ctx); err != nil {
+		t.Fatal(err)
+	}
+	conn, err := pgx.Connect(ctx, url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close(ctx)
+	var id int64
+	if err := conn.QueryRow(ctx,
+		`INSERT INTO users (google_sub, display_name) VALUES ('108', '김철수') RETURNING id`).Scan(&id); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := conn.Exec(ctx, `INSERT INTO activity_logs (user_id, action) VALUES ($1, 'login')`, id); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.Down(ctx); err != nil {
+		t.Fatalf("down 00002: %v", err)
+	}
+	var deleted bool
+	var name *string
+	if err := conn.QueryRow(ctx, `SELECT deleted_at IS NOT NULL, display_name FROM users WHERE id = $1`, id).Scan(&deleted, &name); err != nil {
+		t.Fatal(err)
+	}
+	if !deleted || name != nil {
+		t.Fatalf("sub-only account after down: deleted=%v name=%v", deleted, name)
 	}
 }
 
