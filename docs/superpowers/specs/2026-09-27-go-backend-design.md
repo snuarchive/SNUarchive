@@ -76,6 +76,7 @@ API 세부(경로, 스키마, 에러 코드)는 그 파일이 기준이고, 이 
 | `FieldError.field` `""` | 본문 전체(`NOTHING_SUBMITTED`)나 여러 필드에 걸친 오류(`QUARTILES_OUT_OF_ORDER`, 통계의 `VALUE_OUT_OF_RANGE`) |
 | 만점 초과 | `VALUE_ABOVE_MAX_SCORE`는 넘은 칸(`q1`~`q4`, `average`)마다 하나씩. 앱 검증이 칸별로 보고하고, DB 제약 매핑(`maxScore`)은 앱 검증이 놓친 경우의 대비(2026-09-28 사용자 결정) |
 | 필수 필드 누락 | 빠졌거나 null인 필수 필드는 그 필드의 `422 REQUIRED`. `400 MALFORMED_REQUEST`는 JSON이 아니거나, 모르는 필드가 있거나, JSON 타입이 틀린 경우만(2026-09-28 사용자 결정) |
+| 선택 필드의 null | nullable이 아닌 선택 필드(예: 승인 회차 덮어쓰기의 `kindId`·`year`·`semester`)에 null을 보내면 JSON 타입 불일치로 `400 MALFORMED_REQUEST`. 없는 것으로 보지 않는다(2026-09-28 사용자 결정) |
 | 검색 토큰 | 토큰마다 한 필드(강의명, 교수, 학과명 하나) 안에서만 일치. 필드 경계를 넘지 않는다(5.4) |
 | 이름 마스킹 | 첫·끝 글자 유지, 사이 글자마다 `*` 하나(`김철수` → `김*수`, `남궁민수` → `남**수`). 두 글자는 첫 글자 + `*`(`김수` → `김*`), 한 글자는 그대로. 표시 이름이 없으면 이메일의 `@` 앞부분에 같은 규칙을 적용(`student@snu.ac.kr` → `s*****t`, 2026-09-28 사용자 결정) |
 | `UserSummary.withProfile` | 단과대나 입학년도 중 하나라도 있는 계정 |
@@ -239,7 +240,7 @@ db/migrations/         goose SQL
 - CSRF: `snu_csrf` 쿠키(읽기 가능)와 `X-CSRF-Token` 헤더를 비교한다(unsafe 메서드). `Origin` 헤더가 `APP_ORIGIN`과 다르면 거부한다.
   - 예외: `POST /auth/dev-login`은 `Origin`만 검사하고 CSRF 토큰은 요구하지 않는다(세션이 아직 없음).
   - 예외: `POST /auth/logout`도 `Origin`만 검사하고, 세션이 없거나 무효여도 204로 쿠키를 지운다. 위조된 로그아웃이 할 수 있는 일은 로그아웃뿐이다.
-  - 재발급: 세션은 유효한데 `snu_csrf` 쿠키가 없으면 `GET /me`가 새 값을 설정한다. 쿠키를 잃은 클라이언트가 다시 로그인하지 않고 `/me`를 다시 불러 복구한다.
+  - 재발급: 세션은 유효한데 `snu_csrf` 쿠키가 없으면 `GET /me`가 새 값을 설정한다. 쿠키를 잃은 클라이언트가 다시 로그인하지 않고 `/me`를 다시 불러 복구한다. 재발급한 쿠키의 수명은 로그인 때와 같다(세션의 남은 시간이 아님).
 - 로그아웃은 쿠키 삭제. "모든 기기 로그아웃"과 탈퇴는 `session_epoch`를 올린다.
 
 ### 5.2 API 표면 (제안서 대비 변경)
@@ -266,6 +267,7 @@ db/migrations/         goose SQL
   - `POST /admin/logs/delete-preview`
   - `POST /admin/logs/delete` (같은 필터, 미리보기 토큰 필요)
     - 토큰은 필터, 건수, 미리보기 시점의 최대 로그 id에 묶인다. 삭제는 필터에 맞고 id가 그 이하인 행만 지운다. 미리보기 뒤에 쌓인 로그는 지우지도 세지도 않으므로 `until` 없는 필터도 삭제할 수 있다. 그 범위의 건수가 달라졌으면 409 `DELETE_PREVIEW_MISMATCH`이고 다시 미리보기를 해야 한다. 대개는 줄어든 경우(보존 삭제·다른 삭제)지만 늘 수도 있다. id는 커밋 전에 부여되므로, 기준 이하의 id를 받은 로그가 미리보기 뒤에 커밋될 수 있기 때문이다. 구현은 두 방향을 모두 불일치로 다룬다.
+    - `logs_delete` 활동 로그의 메타데이터는 `{filter, maxId, count}`(경계 id의 키 이름은 `maxId`).
   - `DELETE /admin/logs` (전체, `X-Confirm-Delete`)
 - **업로드 관리**
   - `GET /admin/reports?status&courseId`

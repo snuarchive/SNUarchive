@@ -1512,7 +1512,8 @@ paths:
         handed out before commit, so an entry that took an id at or below the
         bound can commit after the preview. Either way, preview again.
         Afterwards one
-        `logs_delete` entry records the filter, the id bound and the count.
+        `logs_delete` entry records the filter, the id bound (`maxId`) and
+        the count.
 
         At least one filter field (`from`, `until`, `action`, `userId`) is
         required besides `token`; a body with only `token` is
@@ -1699,6 +1700,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/AdminRequired' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
 
   /admin/admins/{userId}:
     parameters:
@@ -2347,7 +2349,11 @@ components:
 
     SittingKeyOverride:
       type: object
-      description: Any subset of a sitting key; omitted fields keep the claimed value.
+      description: |
+        Any subset of a sitting key; omitted fields keep the claimed value.
+        Only `number` accepts null (to clear it); null for `kindId`, `year` or
+        `semester` is a JSON type mismatch and is `400 MALFORMED_REQUEST`,
+        not "keep the claimed value".
       properties:
         kindId:   { $ref: '#/components/schemas/Id' }
         number:   { type: [integer, 'null'], minimum: 1 }
