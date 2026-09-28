@@ -53,10 +53,9 @@ export function str(
 ): string | null | undefined {
   const v = body[key];
   if (v === undefined) return undefined;
-  if (v === null) {
-    if (opts.nullable) return null;
-    throw malformed(`${key}: null은 허용되지 않습니다.`);
-  }
+  // A null where null is not allowed counts as missing, so a required field
+  // is 422 REQUIRED as the contract says, not 400.
+  if (v === null) return opts.nullable ? null : undefined;
   if (typeof v !== "string") throw malformed(`${key}: 문자열이어야 합니다.`);
   return v;
 }
@@ -74,10 +73,9 @@ export function int(
 ): number | null | undefined {
   const v = body[key];
   if (v === undefined) return undefined;
-  if (v === null) {
-    if (opts.nullable) return null;
-    throw malformed(`${key}: null은 허용되지 않습니다.`);
-  }
+  // A null where null is not allowed counts as missing, so a required field
+  // is 422 REQUIRED as the contract says, not 400.
+  if (v === null) return opts.nullable ? null : undefined;
   if (typeof v !== "number" || !Number.isInteger(v))
     throw malformed(`${key}: 정수여야 합니다.`);
   return v;

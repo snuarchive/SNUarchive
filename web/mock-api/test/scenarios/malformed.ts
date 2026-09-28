@@ -6,6 +6,18 @@ import { refs } from "../harness";
 
 export function malformedScenarios(h: H) {
   describe("malformed bodies", () => {
+    it("a required field sent as null is 422 REQUIRED, not 400", async () => {
+      const r = refs(h.mock);
+      const student = await h.student();
+      const res = await student.post(`/courses/${r.course.id}/comments`, {
+        json: { body: null },
+      });
+      expect(res.status).toBe(422);
+      expect(res.json.error.details.fields).toEqual([
+        { field: "body", code: "REQUIRED" },
+      ]);
+    });
+
     it("every JSON write answers 400 to a malformed body", async () => {
       const r = refs(h.mock);
       const admin = await h.admin();
