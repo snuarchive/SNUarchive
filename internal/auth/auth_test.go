@@ -142,6 +142,44 @@ func TestSignInGoogleReissuedEmail(t *testing.T) {
 	}
 }
 
+// The known-sub branch of SignInGoogle: an account signing in with its own
+// (already-known) sub, but a new address, takes that address away from
+// another Google-linked account, just as a first-time reissue does.
+func TestSignInGoogleKnownSubTakesAnAddressFromAnotherSubAccount(t *testing.T) {
+	s, pool := newService(t)
+	ctx := context.Background()
+	a, err := s.SignInGoogle(ctx, auth.Identity{Subject: "1001", Email: "x@snu.ac.kr", Name: "김철수"}, ip)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := s.SignInGoogle(ctx, auth.Identity{Subject: "2002", Email: "c@snu.ac.kr", Name: "박민수"}, ip)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	again, err := s.SignInGoogle(ctx, auth.Identity{Subject: "2002", Email: "x@snu.ac.kr", Name: "박민수"}, ip)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again.ID != c.ID || again.Email != "x@snu.ac.kr" {
+		t.Fatalf("C must now hold x@: %+v", again)
+	}
+	if email := scalar[*string](t, pool, `SELECT email FROM users WHERE id = $1`, a.ID); email != nil {
+		t.Fatalf("A must give up x@: %s", *email)
+	}
+	if sub := scalar[string](t, pool, `SELECT google_sub FROM users WHERE id = $1`, a.ID); sub != "1001" {
+		t.Fatalf("A must keep its sub: %s", sub)
+	}
+
+	back, err := s.SignInGoogle(ctx, auth.Identity{Subject: "1001", Email: "new-a@snu.ac.kr"}, ip)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if back.ID != a.ID || back.Email != "new-a@snu.ac.kr" {
+		t.Fatalf("A must be able to sign in again with a new address: %+v", back)
+	}
+}
+
 // A first Google sign-in claims the account dev login (or an import) made.
 func TestSignInGoogleClaimsAnAccountWithoutSub(t *testing.T) {
 	s, pool := newService(t)
