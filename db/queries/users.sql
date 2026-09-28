@@ -27,7 +27,9 @@ WHERE id = sqlc.arg(id)
 RETURNING *;
 
 -- name: ReleaseEmail :exec
-UPDATE users SET email = NULL WHERE id = $1;
+-- session_epoch also moves, so the previous holder's old cookies stay
+-- invalid even after they sign in again with their new address.
+UPDATE users SET email = NULL, session_epoch = session_epoch + 1 WHERE id = $1;
 
 -- name: TouchLastSeen :exec
 UPDATE users SET last_seen_at = now()

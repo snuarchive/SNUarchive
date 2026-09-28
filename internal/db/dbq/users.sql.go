@@ -229,9 +229,11 @@ func (q *Queries) RecordSignIn(ctx context.Context, arg RecordSignInParams) (Use
 }
 
 const releaseEmail = `-- name: ReleaseEmail :exec
-UPDATE users SET email = NULL WHERE id = $1
+UPDATE users SET email = NULL, session_epoch = session_epoch + 1 WHERE id = $1
 `
 
+// session_epoch also moves, so the previous holder's old cookies stay
+// invalid even after they sign in again with their new address.
 func (q *Queries) ReleaseEmail(ctx context.Context, id int64) error {
 	_, err := q.db.Exec(ctx, releaseEmail, id)
 	return err

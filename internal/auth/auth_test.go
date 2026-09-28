@@ -140,6 +140,15 @@ func TestSignInGoogleReissuedEmail(t *testing.T) {
 	if back.ID != old.ID || back.Email != "chulsoo.kim@snu.ac.kr" || !back.IsAdmin {
 		t.Fatalf("returning account = %+v", back)
 	}
+	// Release ends the old holder's sessions: releaseEmail bumped the
+	// epoch, so cookies from before the address was taken away stay dead
+	// even though the account is signing in again.
+	if _, err := s.Authenticate(ctx, back.ID, old.SessionEpoch); code(err) != apperr.NotAuthenticated {
+		t.Fatalf("the pre-release epoch must not authenticate: %v", err)
+	}
+	if _, err := s.Authenticate(ctx, back.ID, back.SessionEpoch); err != nil {
+		t.Fatalf("the new epoch must authenticate: %v", err)
+	}
 }
 
 // The known-sub branch of SignInGoogle: an account signing in with its own
