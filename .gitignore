@@ -2,3 +2,5 @@
 .local-data/
 node_modules/
 .vercel/
+
+/bin/

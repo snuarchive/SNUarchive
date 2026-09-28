@@ -1,0 +1,22 @@
+{$SITE_ADDRESS} {
+	encode zstd gzip
+
+	handle /api/* {
+		# always replace any client-supplied X-Request-ID with one Caddy
+		# generates itself, so Go never trusts an ID a browser made up
+		reverse_proxy app:8080 {
+			header_up X-Request-ID {http.request.uuid}
+		}
+	}
+
+	# container health checks stay internal
+	@health path /healthz /readyz
+	handle @health {
+		respond 404
+	}
+
+	# the React SSR server (web service) is added in the frontend phase
+	handle {
+		respond "SNU Archive frontend is not deployed yet" 404
+	}
+}
