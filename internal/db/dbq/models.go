@@ -441,6 +441,7 @@ type ExamSitting struct {
 	VotingOpenedAt *time.Time
 	VotingClosesAt *time.Time
 	VotingEndedAt  *time.Time
+	AdminCreated   bool
 	CreatedAt      time.Time
 }
 

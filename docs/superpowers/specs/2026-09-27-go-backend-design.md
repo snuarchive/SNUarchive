@@ -71,6 +71,8 @@ API 세부(경로, 스키마, 에러 코드)는 그 파일이 기준이고, 이 
 | `/config.devLoginEnabled` | `APP_ENV=development` + `DEV_LOGIN_ENABLED=true`일 때만 true(= dev-login 경로가 있을 때) |
 | 로그인 후 돌아갈 곳 | `GET /auth/google?next=` — 유효한 `next`는 다음을 모두 만족해야 한다: `/`로 시작, 두 번째 글자가 `/`나 `\`가 아님, 어디에도 `\`를 포함하지 않음, 제어문자나 공백(U+0000–U+001F, U+007F, space)을 포함하지 않음, 앱 출처를 기준으로 URL로 파싱했을 때 결과가 다시 앱 출처가 됨(스킴도 호스트도 없음). 그 밖의 값은 무시하고 `/`로 간다. 서명된 state 쿠키에 담아 콜백 성공 시 그리로 감(쿼리 파라미터로 `auth=ok`를 덧붙이되, 기존 쿼리와 프래그먼트는 유지) |
 | dev-login 검사 | `Origin`은 검사, CSRF 토큰은 요구하지 않음(세션이 아직 없음) |
+| 로그아웃 검사 | `Origin`만 검사. 세션·CSRF 토큰 없이도 204로 쿠키를 지운다(만료·손상된 세션도 로그아웃 가능) |
+| CSRF 쿠키 재발급 | 세션은 유효한데 `snu_csrf`가 없으면 `GET /me`가 새로 설정한다. 있으면 그대로 둔다 |
 | `FieldError.field` `""` | 본문 전체(`NOTHING_SUBMITTED`)나 여러 필드에 걸친 오류(`QUARTILES_OUT_OF_ORDER`, 통계의 `VALUE_OUT_OF_RANGE`) |
 | 만점 초과 | `VALUE_ABOVE_MAX_SCORE`는 넘은 칸(`q1`~`q4`, `average`)마다 하나씩. 앱 검증이 칸별로 보고하고, DB 제약 매핑(`maxScore`)은 앱 검증이 놓친 경우의 대비(2026-09-28 사용자 결정) |
 | 필수 필드 누락 | 빠졌거나 null인 필수 필드는 그 필드의 `422 REQUIRED`. `400 MALFORMED_REQUEST`는 JSON이 아니거나, 모르는 필드가 있거나, JSON 타입이 틀린 경우만(2026-09-28 사용자 결정) |
@@ -81,6 +83,7 @@ API 세부(경로, 스키마, 에러 코드)는 그 파일이 기준이고, 이 
 | 홈 `mostRequested` | 투표가 한 번도 열린 적 없는 회차의 열린 요청만 센다 |
 | 관리자 회수 대상 | 계정이 없거나 관리자가 아니면 404 `NOT_FOUND` |
 | 탈퇴 시 즐겨찾기·투표 요청 | 즐겨찾기는 삭제, 열린 투표 요청은 수요 신호로 유지 |
+| 빈 회차 | 학생용 강의 조회에서 숨김(삭제 없음, 관리자 삭제 API 없음). 숨긴 통계만 있는 회차는 빈 회차가 아님. 관리자가 만든 회차(`admin_created`)는 비어 있어도 보임(4.3, O31) |
 | 한줄평 첫 페이지 | `GET /courses/{id}`의 `comments`는 20개 |
 | 투표 제외 기준 시각 | 제거(2026-09-28). 대안인 "시험 이후 투표 개시(개시 예약)"는 회차마다 시험 일자가 필요한데, 모든 시험의 일자를 하나하나 수집해 입력할 수 없다는 한계를 먼저 해결해야 하므로 보류(O25) |
 
@@ -97,6 +100,7 @@ internal/
   calendar/            Asia/Seoul 기준 현재 학기, 학기 라벨 (time/tzdata 내장 — distroless에 zoneinfo 없음)
   refdata/             /config 참조 데이터(시험 종류, 단과대, 학기 라벨)와 입력 한도 상수
   apperr/              에러 코드·필드 에러 타입, HTTP 상태 매핑
+  optional/            JSON 필드의 빠짐과 null 구분(PATCH류 본문)
   db/                  pgxpool, goose 마이그레이션(embed), sqlc 생성 코드, 트랜잭션 헬퍼
   auth/                Google OAuth, 세션 쿠키 코덱, CSRF, 개발 로그인
   users/               사용자 upsert, 프로필, 탈퇴 스크럽, 관리자 판정
@@ -152,6 +156,7 @@ db/migrations/         goose SQL
   - 탈퇴 시 `session_epoch`를 올린다. 기여 행의 `nickname`과 활동 로그는 유지한다.
 - 관리자 판정: `is_admin OR email ∈ ADMIN_EMAILS`. env 관리자는 콘솔에 `source: env`로 표시하고 회수 API는 409다. "마지막 관리자" 판단에 env 관리자도 세되, 로그인한 적 없는(계정이 없는) env 주소는 세지 않는다. 대시보드 `users.admins`도 같다.
 - 관리자가 아닌 계정의 회수는 404 `NOT_FOUND`.
+- 탈퇴(스크럽)한 계정에 부여하면 404 `NOT_FOUND`. 스크럽 CHECK가 `is_admin`을 막으므로 `deleted_at IS NULL`인 행만 갱신하고, 0행이면 404로 답한다(제약 위반 500을 내지 않는다).
 - 탈퇴 시 그 사용자의 즐겨찾기는 삭제하고, 열린 투표 요청은 수요 신호로 남긴다.
 
 ### 4.3 시험 회차·투표
@@ -166,12 +171,13 @@ db/migrations/         goose SQL
   | assignment | 과제 | yes | 20 | 과제 {n} |
   | other | 기타 | no | – | 기타 |
 
-- `exam_sittings(id, course_id, kind_id, number smallint NULL, year, semester, voting_opened_at NULL, voting_closes_at NULL, voting_ended_at NULL, created_at)`
+- `exam_sittings(id, course_id, kind_id, number smallint NULL, year, semester, voting_opened_at NULL, voting_closes_at NULL, voting_ended_at NULL, admin_created, created_at)`
   - `UNIQUE NULLS NOT DISTINCT (course_id, kind_id, number, year, semester)`
   - 번호 규칙(numbered면 1..max, 아니면 NULL)은 트리거와 앱 검증으로 강제한다.
   - 열림 여부 = `voting_opened_at IS NOT NULL AND voting_ended_at IS NULL AND (voting_closes_at IS NULL OR voting_closes_at > now())`
   - 재개설: `voting_opened_at = now()`, `voting_ended_at = NULL`, 새 `voting_closes_at`. 기존 표는 유지된다.
   - 회차 생성 경로: 통계 제출, 투표 요청, 관리자 개설, 업로드 승인(get-or-create, `ON CONFLICT`).
+  - 빈 회차: 통계 행이 하나도 없고(숨긴 통계도 있는 것으로 센다), 투표가 없고, 열린 투표 요청이 없고, 투표가 열려 있지 않은 회차. 학생용 조회(`GET /courses/{id}`의 `sittings`)에서 뺀다. 삭제하지 않으며, 조건 중 하나라도 생기면 다시 보인다. 관리자 조회에는 늘 나온다. 단 `admin_created`(관리자 회차 만들기 `POST /admin/courses/{id}/sittings`가 켬, 이미 있는 회차에도)인 회차는 비어 있어도 보인다. 학생이 보고 투표를 요청할 수 있게 하려는 것이다. 관리자 삭제 API는 두지 않는다(O31).
 - `votes(id, sitting_id, user_id, rating 1..5, created_at, updated_at)`: `UNIQUE(sitting_id, user_id)`. 투표와 수정은 회차가 열려 있을 때만 가능하다(닫힌 회차는 409 `VOTING_NOT_OPEN`).
 - `content_version(n bigint)`: 단일 행. 검색 ETag용(5.4).
 - `voting_requests(id, sitting_id, user_id, note ≤100자 NULL, status open|fulfilled|rejected|cancelled, created_at, resolved_at, resolved_by)`
@@ -186,6 +192,7 @@ db/migrations/         goose SQL
   - 승인은 `status = 'pending'`인 행에서만 가능하다(`UPDATE … WHERE status = 'pending'`, 0행이면 409). 통계 1개 생성과 같은 트랜잭션에서 처리한다.
 - `upload_intents(file_key PK, created_at)`: 오브젝트 쓰기 전에 삽입하고, `pending_reports` 커밋과 같은 트랜잭션에서 삭제한다.
 - `comments(id, course_id, user_id, body ≤50자, created_at)`
+  - 서버가 앞뒤 공백을 지우고 연속 공백을 하나로 줄인 값을 저장하며, 50자는 저장된 값의 코드포인트로 센다. 비었으면 `comments_body_blank_ck`(`REQUIRED`), 길면 `comments_body_ck`(`TOO_LONG`).
 - `favorites(user_id, course_id, position, created_at)`: `position`은 사용자가 정한 순서(작을수록 앞).
   - `UNIQUE (user_id, position) DEFERRABLE INITIALLY IMMEDIATE`: 순서 변경 트랜잭션은 `SET CONSTRAINTS favorites_position_u DEFERRED` 후 자리를 맞바꾼다.
   - 새 즐겨찾기는 그 사용자의 `min(position) − 1`(첫 항목은 0)로 넣어 맨 앞에 온다(앱 규칙).
@@ -231,6 +238,8 @@ db/migrations/         goose SQL
   - 요청마다 `users`를 조회해 `deleted_at IS NULL`이고 `session_epoch = ep`인지 확인한다. `last_seen_at`은 최대 10분에 한 번만 갱신한다.
 - CSRF: `snu_csrf` 쿠키(읽기 가능)와 `X-CSRF-Token` 헤더를 비교한다(unsafe 메서드). `Origin` 헤더가 `APP_ORIGIN`과 다르면 거부한다.
   - 예외: `POST /auth/dev-login`은 `Origin`만 검사하고 CSRF 토큰은 요구하지 않는다(세션이 아직 없음).
+  - 예외: `POST /auth/logout`도 `Origin`만 검사하고, 세션이 없거나 무효여도 204로 쿠키를 지운다. 위조된 로그아웃이 할 수 있는 일은 로그아웃뿐이다.
+  - 재발급: 세션은 유효한데 `snu_csrf` 쿠키가 없으면 `GET /me`가 새 값을 설정한다. 쿠키를 잃은 클라이언트가 다시 로그인하지 않고 `/me`를 다시 불러 복구한다.
 - 로그아웃은 쿠키 삭제. "모든 기기 로그아웃"과 탈퇴는 `session_epoch`를 올린다.
 
 ### 5.2 API 표면 (제안서 대비 변경)
@@ -255,7 +264,8 @@ db/migrations/         goose SQL
   - `GET /admin/logs?from&until&action&userId&cursor`
   - `GET /admin/logs/export?format=json|jsonl|csv|xlsx|parquet&…`
   - `POST /admin/logs/delete-preview`
-  - `POST /admin/logs/delete` (같은 필터, 미리보기 건수 확인 토큰 필요)
+  - `POST /admin/logs/delete` (같은 필터, 미리보기 토큰 필요)
+    - 토큰은 필터, 건수, 미리보기 시점의 최대 로그 id에 묶인다. 삭제는 필터에 맞고 id가 그 이하인 행만 지운다. 미리보기 뒤에 쌓인 로그는 지우지도 세지도 않으므로 `until` 없는 필터도 삭제할 수 있다. 그 범위의 건수가 달라졌으면(보존 삭제·다른 삭제로 줄어든 경우) 409 `DELETE_PREVIEW_MISMATCH`.
   - `DELETE /admin/logs` (전체, `X-Confirm-Delete`)
 - **업로드 관리**
   - `GET /admin/reports?status&courseId`
@@ -368,6 +378,8 @@ db/migrations/         goose SQL
 - 도메인은 타입이 있는 에러(`apperr.Code` + 필드 에러)를 반환하고, `httpapi`가 HTTP 상태와 `Error` 본문으로 매핑한다.
 - DB 제약 위반(SQLSTATE 23514·23505·23503)은 제약 이름으로 `FieldError`/코드에 매핑한다. 매핑표 하나를 두고 테스트로 모든 CHECK 이름을 덮는다.
 - 필수 필드 누락은 `422 VALIDATION_FAILED`(`REQUIRED`, 해당 필드)다. 디코딩은 누락과 null을 함께 잡아(포인터 필드 등) 검증 단계에서 보고한다. `400 MALFORMED_REQUEST`는 JSON 구문 오류, 모르는 필드, JSON 타입 불일치만.
+- 텍스트 길이 CHECK는 "비었음"과 "너무 김"을 다른 제약으로 나눈다(`*_blank_ck`, `*_ck`). 한 제약에 최소·최대를 함께 두면 빈 값도 `TOO_LONG`으로 매핑되기 때문이다. 선택 텍스트(투표 요청 메모, 숨김 사유)는 비었거나 공백뿐이면 NULL로, 닉네임은 `(익명)`으로 저장하므로 그쪽 `*_blank_ck`는 내부 불변식이다.
+- PATCH류 본문에서 빠진 필드와 `null`은 뜻이 다르다(빠짐 = 유지, `null` = 지움). `encoding/json`은 둘 다 nil 포인터로 풀므로 이런 필드는 `internal/optional.Field[T]`로 받는다. 필수 필드는 누락과 null이 둘 다 `REQUIRED`라 위처럼 포인터로 충분하다(`PATCH /me`, `PATCH /admin/statistics/{id}`, 승인의 회차 덮어쓰기).
 - 5xx는 요청 ID와 함께 로그를 남기고, 본문에는 일반 메시지만 넣는다.
 - 활동 로그:
   - **쓰기 경로**(제보, 투표, 관리자 작업, 로그 삭제)는 도메인 변경과 같은 트랜잭션에 기록한다. 기록이 실패하면 요청 전체가 실패한다. 감사 기록 없는 변경을 막기 위해서다.

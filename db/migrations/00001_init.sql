@@ -239,6 +239,9 @@ CREATE TABLE exam_sittings (
   voting_opened_at   timestamptz,
   voting_closes_at   timestamptz,
   voting_ended_at    timestamptz,
+  -- set by POST /admin/courses/{id}/sittings (also on an existing row);
+  -- such a sitting stays on the course page even while empty
+  admin_created      boolean     NOT NULL DEFAULT false,
   created_at         timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT exam_sittings_pk        PRIMARY KEY (id),
   CONSTRAINT exam_sittings_u         UNIQUE NULLS NOT DISTINCT (course_id, kind_id, number, year, semester),
@@ -288,7 +291,9 @@ CREATE TABLE voting_requests (
   CONSTRAINT voting_requests_sitting_fk  FOREIGN KEY (sitting_id)  REFERENCES exam_sittings (id),
   CONSTRAINT voting_requests_user_fk     FOREIGN KEY (user_id)     REFERENCES users (id),
   CONSTRAINT voting_requests_resolver_fk FOREIGN KEY (resolved_by) REFERENCES users (id),
-  CONSTRAINT voting_requests_note_ck     CHECK (note IS NULL OR char_length(note) BETWEEN 1 AND 100),
+  -- the server stores a blank note as NULL
+  CONSTRAINT voting_requests_note_blank_ck CHECK (note IS NULL OR note ~ '\S'),
+  CONSTRAINT voting_requests_note_ck     CHECK (note IS NULL OR char_length(note) <= 100),
   CONSTRAINT voting_requests_resolved_ck CHECK ((status = 'open') = (resolved_at IS NULL))
 );
 CREATE UNIQUE INDEX voting_requests_open_u ON voting_requests (sitting_id, user_id) WHERE status = 'open';
@@ -323,7 +328,9 @@ CREATE TABLE pending_reports (
   CONSTRAINT pending_reports_reviewer_fk FOREIGN KEY (reviewer_id) REFERENCES users (id),
   CONSTRAINT pending_reports_semester_ck CHECK (semester BETWEEN 1 AND 4),
   CONSTRAINT pending_reports_year_ck     CHECK (year BETWEEN 1980 AND 2200),
-  CONSTRAINT pending_reports_nickname_ck CHECK (char_length(nickname) BETWEEN 1 AND 10),
+  -- the server stores a blank nickname as '(익명)'
+  CONSTRAINT pending_reports_nickname_blank_ck CHECK (nickname ~ '\S'),
+  CONSTRAINT pending_reports_nickname_ck CHECK (char_length(nickname) <= 10),
   CONSTRAINT pending_reports_note_ck     CHECK (review_note IS NULL OR char_length(review_note) <= 500),
   CONSTRAINT pending_reports_size_ck     CHECK (byte_size > 0 AND byte_size <= 3145728),
   CONSTRAINT pending_reports_sha_ck      CHECK (sha256 ~ '^[0-9a-f]{64}$'),
@@ -376,8 +383,11 @@ CREATE TABLE stat_reports (
     (hidden_at IS NULL AND hidden_by IS NULL AND hidden_reason IS NULL)
     OR (hidden_at IS NOT NULL AND hidden_by IS NOT NULL)
   ),
-  CONSTRAINT stat_reports_hidden_reason_ck CHECK (hidden_reason IS NULL OR char_length(hidden_reason) BETWEEN 1 AND 500),
-  CONSTRAINT stat_reports_nickname_ck   CHECK (char_length(nickname) BETWEEN 1 AND 10),
+  -- the server stores a blank reason as NULL and a blank nickname as '(익명)'
+  CONSTRAINT stat_reports_hidden_reason_blank_ck CHECK (hidden_reason IS NULL OR hidden_reason ~ '\S'),
+  CONSTRAINT stat_reports_hidden_reason_ck CHECK (hidden_reason IS NULL OR char_length(hidden_reason) <= 500),
+  CONSTRAINT stat_reports_nickname_blank_ck CHECK (nickname ~ '\S'),
+  CONSTRAINT stat_reports_nickname_ck   CHECK (char_length(nickname) <= 10),
   CONSTRAINT stat_reports_note_ck       CHECK (note IS NULL OR char_length(note) <= 500),
   CONSTRAINT stat_reports_not_empty_ck  CHECK (
     num_nonnulls(q1, q2, q3, q4, average, max_score) > 0
@@ -408,7 +418,10 @@ CREATE TABLE comments (
   CONSTRAINT comments_pk        PRIMARY KEY (id),
   CONSTRAINT comments_course_fk FOREIGN KEY (course_id) REFERENCES courses (id),
   CONSTRAINT comments_user_fk   FOREIGN KEY (user_id)   REFERENCES users (id),
-  CONSTRAINT comments_body_ck   CHECK (char_length(btrim(body)) BETWEEN 1 AND 50)
+  -- the server trims the body and collapses runs of whitespace before
+  -- storing it, so the length limit applies to the stored text
+  CONSTRAINT comments_body_blank_ck CHECK (body ~ '\S'),
+  CONSTRAINT comments_body_ck   CHECK (char_length(body) <= 50)
 );
 CREATE INDEX comments_course_idx ON comments (course_id, created_at DESC, id DESC);
 CREATE INDEX comments_recent_idx ON comments (created_at DESC, id DESC);

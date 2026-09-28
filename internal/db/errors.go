@@ -82,6 +82,15 @@ var constraintRules = map[string]rule{
 	"job_runs_dated_ck":             internalInvariant,
 	"content_version_ck":            internalInvariant,
 
+	// blank text: a blank comment body is the caller's mistake; the server
+	// stores other blank values as NULL (or a nickname as (익명)), so
+	// tripping those is a server bug
+	"comments_body_blank_ck":              field("body", apperr.Required),
+	"voting_requests_note_blank_ck":       internalInvariant,
+	"pending_reports_nickname_blank_ck":   internalInvariant,
+	"stat_reports_nickname_blank_ck":      internalInvariant,
+	"stat_reports_hidden_reason_blank_ck": internalInvariant,
+
 	// raised by check_assessment_number()
 	"exam_sittings_number_ck":   field("number", apperr.InvalidAssessmentNumber),
 	"pending_reports_number_ck": field("number", apperr.InvalidAssessmentNumber),

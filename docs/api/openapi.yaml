@@ -13,6 +13,10 @@ info:
     Every unsafe method must echo the CSRF cookie in `X-CSRF-Token`, and its
     `Origin` header must equal the configured app origin. OpenAPI cannot
     express "header must equal cookie"; that pairing is a server-side check.
+    If `snu_csrf` is missing while the session is valid, `GET /me` sets a
+    new one, so a client that lost the cookie recovers by reloading `/me`
+    instead of signing in again. `POST /auth/logout` needs neither a
+    session nor a token, only a matching `Origin`.
 
     **Same origin.** The API is served under the app's own host (`/api/v1`),
     so no CORS is configured and `SameSite=Lax` stays viable.
@@ -140,13 +144,19 @@ paths:
       operationId: logout
       tags: [session]
       summary: End this session
-      description: Clears the cookies on this device only. See `/me/logout-all`.
+      description: |
+        Clears the cookies on this device only. See `/me/logout-all`.
+
+        Always `204` when the `Origin` header matches, with or without a
+        valid session, so an expired or broken session can still clear its
+        cookies. No CSRF token is required: the `Origin` check already stops
+        cross-site requests, and the worst a forged logout could do is sign
+        the user out. A mismatched `Origin` is `403 CSRF_INVALID`.
       security:
+        - {}
         - sessionCookie: []
-          csrfToken: []
       responses:
         '204': { description: Cookies cleared }
-        '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/CsrfInvalid' }
 
   /auth/dev-login:
@@ -192,6 +202,10 @@ paths:
       operationId: getMe
       tags: [session]
       summary: The current user
+      description: |
+        Also re-issues `snu_csrf` when the request has a valid session but no
+        CSRF cookie, so the client can recover a lost token by calling this
+        again. An existing CSRF cookie is left unchanged.
       responses:
         '200':
           description: The signed-in user
@@ -438,9 +452,18 @@ paths:
         page of comments.
 
         `sittings` lists only sittings that exist — one is created the first
-        time someone submits a statistic, uploads, requests voting, or an
-        admin creates it. An absent sitting means "nothing submitted yet", not
-        "this exam did not happen".
+        time someone submits a statistic, requests voting, has an upload
+        approved, or an admin creates it. An absent sitting means "nothing
+        submitted yet", not "this exam did not happen".
+
+        A sitting with nothing in it is left out: no statistics (hidden ones
+        count as something), no votes, no open voting request, and voting not
+        open. That happens when a request is cancelled or rejected, or the
+        only statistic is moved away. It is not deleted, reappears as soon as
+        it gets any of those, and admin reads (`GET /admin/sittings`) always
+        include it. A sitting an admin created or re-created through
+        `POST /admin/courses/{courseId}/sittings` is never left out, even
+        while empty, so students can see it and request voting on it.
 
         Unlisted courses are still readable here; they only drop out of
         search and the landing lists.
@@ -502,8 +525,11 @@ paths:
                   minLength: 1
                   maxLength: 50
                   description: |
-                    Unicode code points after collapsing whitespace, not
-                    bytes (`comments_body_ck`).
+                    The server trims the body and collapses each run of
+                    whitespace to one space, stores that text, and counts its
+                    Unicode code points, not bytes. Blank after trimming is
+                    `REQUIRED` (`comments_body_blank_ck`); over 50 is
+                    `TOO_LONG` (`comments_body_ck`).
               additionalProperties: false
       responses:
         '201':
@@ -677,7 +703,10 @@ paths:
                     note:
                       type: [string, 'null']
                       maxLength: 100
-                      description: Optional hint for the admin, e.g. the exam date.
+                      description: |
+                        Optional hint for the admin, e.g. the exam date.
+                        Code points after trimming; empty or blank is stored
+                        as null.
       responses:
         '201':
           description: The recorded request
@@ -1051,9 +1080,10 @@ paths:
                 hidden: { type: boolean }
                 reason:
                   type: [string, 'null']
-                  minLength: 1
                   maxLength: 500
-                  description: Ignored when `hidden` is false.
+                  description: |
+                    Code points after trimming; empty or blank is stored as
+                    null. Ignored when `hidden` is false.
               additionalProperties: false
       responses:
         '200':
@@ -1123,6 +1153,9 @@ paths:
         matches, `201` if it was created. If `openVoting` is present and the
         sitting is not already open, voting opens exactly as
         `POST /admin/sittings/{id}/voting` would.
+
+        Either way the sitting is marked admin-created, so it stays on the
+        course page even while empty (see `GET /courses/{courseId}`).
       security:
         - sessionCookie: []
           csrfToken: []
@@ -1428,8 +1461,12 @@ paths:
       tags: [admin-logs]
       summary: Count what a filtered delete would remove
       description: |
-        Returns the match count and a token bound to this filter and count,
-        valid for 10 minutes. The delete must present the token.
+        Returns the match count and a token, valid for 10 minutes, that the
+        delete must present. The token binds the filter, the count, and the
+        highest id of any log entry at preview time. The delete removes only
+        matching entries at or below that id, so entries written after the
+        preview are neither deleted nor counted — a filter without `until`
+        (e.g. every `login`) stays deletable while new entries keep arriving.
 
         At least one filter field (`from`, `until`, `action`, `userId`) is
         required; an empty filter is `422 VALIDATION_FAILED` with
@@ -1466,10 +1503,13 @@ paths:
       tags: [admin-logs]
       summary: Delete log entries matching a filter
       description: |
-        The filter must be identical to the previewed one and the match count
-        unchanged; otherwise `409 DELETE_PREVIEW_MISMATCH` and nothing is
-        deleted. Afterwards one `logs_delete` entry records the filter and
-        count.
+        Deletes the entries that match the filter and whose id is at or below
+        the bound the token recorded (see the preview). The filter must be
+        identical to the previewed one and the count of those entries
+        unchanged — it can only drop, e.g. when retention or another delete
+        removed some since the preview; otherwise
+        `409 DELETE_PREVIEW_MISMATCH` and nothing is deleted. Afterwards one
+        `logs_delete` entry records the filter, the id bound and the count.
 
         At least one filter field (`from`, `until`, `action`, `userId`) is
         required besides `token`; a body with only `token` is
@@ -1501,7 +1541,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/AdminRequired' }
         '409':
-          description: '`DELETE_PREVIEW_MISMATCH` — token expired, filter changed or count changed'
+          description: '`DELETE_PREVIEW_MISMATCH` — token expired, filter changed, or entries within the previewed bound were removed since'
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -1629,6 +1669,10 @@ paths:
       description: |
         Idempotent. Takes an id, found via `GET /admin/users?email=`, so a
         typo cannot promote the wrong person. Logged as `admin_grant`.
+
+        `404 NOT_FOUND` when no such account exists, and also when the
+        account has been deleted (scrubbed); a scrubbed account can never
+        hold admin.
       security:
         - sessionCookie: []
           csrfToken: []
@@ -1780,6 +1824,7 @@ components:
       description: |
         Must equal the readable `snu_csrf` cookie; mismatch is
         `403 CSRF_INVALID`. The `Origin` header must also match the app origin.
+        Set at sign-in, and again by `GET /me` when missing.
     cronSecret:
       type: http
       scheme: bearer
@@ -2263,7 +2308,9 @@ components:
         isFavorite: { type: boolean }
         sittings:
           type: array
-          description: Newest term first, then kind sort order, then number.
+          description: |
+            Newest term first, then kind sort order, then number. Empty
+            sittings are left out (see `GET /courses/{courseId}`).
           items: { $ref: '#/components/schemas/Sitting' }
         comments:
           allOf: [{ $ref: '#/components/schemas/CommentPage' }]

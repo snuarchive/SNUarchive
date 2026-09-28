@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/snuarchive/snuarchive/internal/apperr"
@@ -105,6 +106,33 @@ func TestMapErrorWholeBodyErrorsHaveEmptyField(t *testing.T) {
 			}
 		})
 	}
+}
+
+// A blank comment is REQUIRED and an overlong one TOO_LONG; the two must not
+// share a constraint.
+func TestMapErrorBlankAndTooLongComment(t *testing.T) {
+	pool := pgtest.New(t)
+	f := seed(t, pool)
+	cases := []struct {
+		name, body string
+		want       apperr.FieldCode
+	}{
+		{"empty", "", apperr.Required},
+		{"whitespace only", " \t ", apperr.Required},
+		{"51 characters", strings.Repeat("가", 51), apperr.TooLong},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			_, err := pool.Exec(context.Background(),
+				`INSERT INTO comments (course_id, user_id, body) VALUES ($1, $2, $3)`, f.courseID, f.userID, c.body)
+			e, ok := apperr.As(db.MapError(err))
+			if !ok || len(e.Fields) != 1 || e.Fields[0] != (apperr.FieldError{Field: "body", Code: c.want}) {
+				t.Fatalf("got %v", db.MapError(err))
+			}
+		})
+	}
+	mustExec(t, pool, `INSERT INTO comments (course_id, user_id, body) VALUES ($1, $2, $3)`,
+		f.courseID, f.userID, strings.Repeat("가", 50))
 }
 
 func TestMapErrorTriggerName(t *testing.T) {
