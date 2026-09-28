@@ -371,6 +371,62 @@ func TestDeleteMe(t *testing.T) {
 	}
 }
 
+// TestStaleSessionClearsTheCookie covers the contract's promise that a
+// session invalidated by logout-all or account deletion is not just
+// rejected but actively cleared: the 401 carries a snu_session Set-Cookie
+// with a negative MaxAge, so a client that ignores the body still stops
+// sending a dead cookie.
+func TestStaleSessionClearsTheCookie(t *testing.T) {
+	t.Run("logout-all", func(t *testing.T) {
+		e := newEnv(t, withDevLogin)
+		sess, csrf := e.devSignIn(t, "kim@snu.ac.kr")
+		if rec := e.spec.Do(t, e.srv, http.MethodPost, "/api/v1/me/logout-all", nil, unsafeHeader(sess, csrf)); rec.Code != 204 {
+			t.Fatalf("logout-all: %d", rec.Code)
+		}
+		rec := e.spec.Do(t, e.srv, http.MethodGet, "/api/v1/me", nil, header(sess, csrf))
+		if rec.Code != 401 {
+			t.Fatalf("stale session: %d", rec.Code)
+		}
+		if cleared := cookies(rec)["snu_session"]; cleared == nil || cleared.MaxAge >= 0 {
+			t.Fatalf("session cookie not cleared: %+v", cleared)
+		}
+	})
+	t.Run("delete me", func(t *testing.T) {
+		e := newEnv(t, withDevLogin)
+		sess, csrf := e.devSignIn(t, "kim@snu.ac.kr")
+		h := unsafeHeader(sess, csrf)
+		h.Set("X-Confirm-Delete", "true")
+		if rec := e.spec.Do(t, e.srv, http.MethodDelete, "/api/v1/me", nil, h); rec.Code != 204 {
+			t.Fatalf("delete: %d", rec.Code)
+		}
+		rec := e.spec.Do(t, e.srv, http.MethodGet, "/api/v1/me", nil, header(sess, csrf))
+		if rec.Code != 401 {
+			t.Fatalf("stale session: %d", rec.Code)
+		}
+		if cleared := cookies(rec)["snu_session"]; cleared == nil || cleared.MaxAge >= 0 {
+			t.Fatalf("session cookie not cleared: %+v", cleared)
+		}
+	})
+}
+
+// TestDevLoginCookieIsSecureUnderHTTPS covers the contract's promise that
+// the session cookie follows the app origin's scheme: Secure must be set
+// once the app runs behind https, not just in the http development default
+// every other test in this file uses.
+func TestDevLoginCookieIsSecureUnderHTTPS(t *testing.T) {
+	const httpsOrigin = "https://archive.example.com"
+	e := newEnv(t, withDevLogin, func(c *config.Config) { c.AppOrigin = httpsOrigin })
+	h := http.Header{"Origin": {httpsOrigin}, "Content-Type": {"application/json"}}
+	rec := e.spec.Do(t, e.srv, http.MethodPost, "/api/v1/auth/dev-login", []byte(`{"email":"kim@snu.ac.kr"}`), h)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("dev login: %d %s", rec.Code, rec.Body.String())
+	}
+	sess := cookies(rec)["snu_session"]
+	if sess == nil || !sess.Secure {
+		t.Fatalf("session cookie = %+v, want Secure", sess)
+	}
+}
+
 func TestLogoutAllAndLogout(t *testing.T) {
 	e := newEnv(t, withDevLogin)
 	sess, csrf := e.devSignIn(t, "kim@snu.ac.kr")
