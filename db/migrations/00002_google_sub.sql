@@ -22,6 +22,9 @@ ALTER TABLE users ADD CONSTRAINT users_scrubbed_ck CHECK (
 
 -- +goose Down
 
+-- Rolling back drops every Google-sub link, so the next sign-in reclaims
+-- accounts by email instead of by sub; scrubbed rows below keep any
+-- favourites (only DeleteAccount deletes those).
 ALTER TABLE users DROP CONSTRAINT users_scrubbed_ck;
 ALTER TABLE users DROP CONSTRAINT users_live_ck;
 
