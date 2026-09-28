@@ -426,8 +426,8 @@ CREATE TABLE favorites (
   -- deferrable so a reorder can swap positions inside one transaction
   CONSTRAINT favorites_position_u UNIQUE (user_id, position) DEFERRABLE INITIALLY IMMEDIATE
 );
-CREATE INDEX favorites_user_order_idx ON favorites (user_id, position);
-CREATE INDEX favorites_course_idx     ON favorites (course_id);
+-- favorites_position_u's own index already serves (user_id, position) scans
+CREATE INDEX favorites_course_idx ON favorites (course_id);
 
 -- ----------------------------------------------------------- operations
 

@@ -276,3 +276,33 @@ func TestFavoritePositions(t *testing.T) {
 		t.Fatalf("position after swap = %d", got)
 	}
 }
+
+// favorites_position_u is IMMEDIATE by default: attempting the same swap as
+// TestFavoritePositions, but via two separate UPDATE statements without
+// first deferring the constraint, fails with favorites_position_u as soon
+// as a row's new position collides with the other row's still-current one.
+func TestFavoritePositionsImmediateByDefault(t *testing.T) {
+	pool := pgtest.New(t)
+	f := seed(t, pool)
+	inst := scalar[int32](t, pool, `SELECT instructor_id FROM courses WHERE id = $1`, f.courseID)
+	other := scalar[int64](t, pool, `
+		INSERT INTO courses (title, instructor_id, identity_key, search_text)
+		VALUES ('알고리즘', $1, 'k3', '알고리즘') RETURNING id`, inst)
+	mustExec(t, pool, `INSERT INTO favorites (user_id, course_id, position) VALUES ($1, $2, 0)`, f.userID, f.courseID)
+	mustExec(t, pool, `INSERT INTO favorites (user_id, course_id, position) VALUES ($1, $2, 1)`, f.userID, other)
+
+	ctx := context.Background()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	const move = `UPDATE favorites SET position = $3 WHERE user_id = $1 AND course_id = $2`
+	// No `SET CONSTRAINTS favorites_position_u DEFERRED` here, unlike
+	// TestFavoritePositions: the very first statement of the swap already
+	// collides with the other row's committed position and must fail.
+	_, err = tx.Exec(ctx, move, f.userID, f.courseID, 1)
+	if got := constraintOf(t, err); got != "favorites_position_u" {
+		t.Fatalf("swap without SET CONSTRAINTS: constraint = %q, err = %v", got, err)
+	}
+}

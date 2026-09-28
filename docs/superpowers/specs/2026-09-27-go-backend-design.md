@@ -187,6 +187,16 @@ db/migrations/         goose SQL
 - `favorites(user_id, course_id, position, created_at)`: `position`은 사용자가 정한 순서(작을수록 앞).
   - `UNIQUE (user_id, position) DEFERRABLE INITIALLY IMMEDIATE`: 순서 변경 트랜잭션은 `SET CONSTRAINTS favorites_position_u DEFERRED` 후 자리를 맞바꾼다.
   - 새 즐겨찾기는 그 사용자의 `min(position) − 1`(첫 항목은 0)로 넣어 맨 앞에 온다(앱 규칙).
+  - 삽입은 충돌 대상을 명시해야 한다: `INSERT … ON CONFLICT (user_id, course_id) DO NOTHING`(또는
+    `ON CONSTRAINT favorites_pk`). `favorites_position_u`가 지연 가능한(deferrable) 유니크
+    제약이라 중재자가 될 수 있어, PostgreSQL은 대상 없는 `ON CONFLICT`를 거부하기 때문이다.
+  - 같은 사용자의 핀·재정렬은 직렬화한다(예: `pg_advisory_xact_lock(<favorites lock key>, user_id)`,
+    또는 그 사용자 행에 대한 `SELECT … FOR UPDATE`) — 동시에 들어온 두 핀이 같은
+    `min(position) − 1`을 계산해 충돌하지 않도록.
+  - 한 SQL 문 안에서 여러 행의 `position`을 한꺼번에 바꾸는 재번호(예: `CASE`를 쓴 단일
+    `UPDATE`)는 `SET CONSTRAINTS`가 없어도 성공한다 — `IMMEDIATE` 제약은 문장 끝에서
+    검사되기 때문이다. 서로 다른 두 `UPDATE` 문으로 나누면(같은 트랜잭션이라도) `SET
+    CONSTRAINTS … DEFERRED` 없이는 첫 문장 끝에서 `favorites_position_u` 위반으로 실패한다.
 
 ### 4.5 로그
 - `activity_action` enum: 제안서 값 + `voting_update`, `voting_close`, `voting_request_create`, `voting_request_cancel`, `voting_request_reject`, `logs_export`, `logs_delete`, `logs_retention_delete`, `logs_archive`, `account_delete`, `profile_update`, `report_file_view`.
