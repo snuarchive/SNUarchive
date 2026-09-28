@@ -4,11 +4,11 @@ import { calendarBody } from "./calendar";
 import type { Ctx } from "./domain";
 import {
   adminSource,
-  countedVotes,
   findUser,
   isAdmin,
   iso,
   maskName,
+  sittingVotes,
   suggestedAdmissionYear,
   visibleStatistics,
   votingState,
@@ -113,12 +113,11 @@ export function voting(ctx: Ctx, s: SittingRow): S<"Voting"> {
     openedAt: iso(s.votingOpenedAt),
     closesAt: iso(s.votingClosesAt),
     endedAt: iso(s.votingEndedAt),
-    countedFrom: iso(s.votesCountedFrom),
   };
 }
 
 export function difficulty(ctx: Ctx, s: SittingRow): S<"Difficulty"> {
-  const votes = countedVotes(ctx, s);
+  const votes = sittingVotes(ctx, s);
   const distribution = [0, 0, 0, 0, 0];
   let sum = 0;
   for (const v of votes) {

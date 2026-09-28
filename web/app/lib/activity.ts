@@ -26,7 +26,6 @@ export const ACTION_LABELS: Record<Action, string> = {
   voting_open: "투표 열기",
   voting_update: "투표 마감 변경",
   voting_close: "투표 종료",
-  vote_cutoff_set: "투표 기준 시각 설정",
   vote_cast: "난이도 투표",
   voting_request_create: "투표 요청",
   voting_request_cancel: "투표 요청 취소",

@@ -51,12 +51,15 @@ Any other `@snu.ac.kr` address also works and creates a new account.
 
 ## Signing in
 
-**Dev login** is always enabled in the mock. The backend registers it only in
-development.
+**Dev login** is always enabled in the mock, so `GET /config` answers
+`devLoginEnabled: true`. The backend registers it only in development. It
+needs no CSRF token, but `Origin` must equal `APP_ORIGIN`, otherwise
+`403 CSRF_INVALID`.
 
 ```sh
 curl -i -c jar.txt -X POST http://localhost:8787/api/v1/auth/dev-login \
-  -H 'content-type: application/json' -d '{"email":"student@snu.ac.kr"}'
+  -H 'content-type: application/json' -H 'origin: http://localhost:5173' \
+  -d '{"email":"student@snu.ac.kr"}'
 curl -b jar.txt http://localhost:8787/api/v1/me
 ```
 
@@ -72,6 +75,14 @@ would send the browser, so the app's `/api/v1` proxy must forward it to the
 mock. The callback sets both cookies and redirects to `$APP_ORIGIN/?auth=ok`.
 A non-SNU address redirects to `/?auth=forbidden`. A missing `mock_email`, or
 `error=…`, redirects to `/?auth=error`.
+
+`GET /auth/google?next=/courses/12` returns there after signing in, as
+`$APP_ORIGIN/courses/12?auth=ok`; an existing query string and fragment on
+`next` are kept. The mock carries `next` through the chooser page as OAuth
+`state`, where the backend uses a signed cookie. A `next` that breaks the
+contract's rule (not starting with `/`, a second character of `/` or `\`, any
+`\`, control character or space, or a different origin) is ignored, and the
+redirect goes to `/`.
 
 **CSRF.** Every `POST`, `PUT`, `PATCH` and `DELETE` that needs a session also
 needs `X-CSRF-Token` equal to the `snu_csrf` cookie, and `Origin` equal to
@@ -127,8 +138,9 @@ header.
 ## Seed data
 
 The seed is deterministic, but its times are relative to the current time, so
-open voting stays open. The current term follows Asia/Seoul: Mar–Jun is 1,
-Jul–Aug is 2, Sep–Dec is 3, and Jan–Feb is the previous year's 4.
+open voting stays open. The current term follows the contract's rule in
+Asia/Seoul: Mar–Jun is 1, Jul–Aug is 2, Sep–Dec is 3, and Jan–Feb is the
+previous year's 4.
 
 - **Courses:** twelve real catalog courses (미적분학 1, 대학영어 1,
   프로그래밍방법론, 선형대수학, 경제원론 1, 물리학 1, …). One of them is left
@@ -137,7 +149,7 @@ Jul–Aug is 2, Sep–Dec is 3, and Jan–Feb is the previous year's 4.
   including numbered kinds (퀴즈 3, 1차/2차 시험, 과제 2).
   - Open for voting: one closing in 3 days, one closing within 24 hours, and
     one open-ended.
-  - Closed: some by an admin, some by a passed deadline. One has a vote cutoff.
+  - Closed: some by an admin, some by a passed deadline.
   - Never opened: several, with open voting requests.
 - **Votes and statistics:** 107 votes with spread distributions, and 22
   statistics, including partial and note-only rows, one hidden row and one
@@ -161,12 +173,22 @@ mock decides as follows:
 - **Validation.** Shape errors are `400 MALFORMED_REQUEST`: unparseable JSON,
   a wrong JSON type, an unknown property where the schema sets
   `additionalProperties: false`, or a bad `date-time`. Rule errors are
-  `422 VALIDATION_FAILED` with `FieldError`s. A body-level error, such as
-  `NOTHING_SUBMITTED` or an empty PATCH, uses the field `""`.
-- **Comment bylines** use the legacy masking rule: `김민수` → `김*수`, and
-  `남궁민수` → `남**수`.
-- **Vote cutoff** compares against a vote's latest change, so re-rating after
-  the cutoff counts again.
+  `422 VALIDATION_FAILED` with `FieldError`s. As the contract says, the field
+  is `""` for a body-level error (`NOTHING_SUBMITTED`, an empty PATCH, an
+  empty log filter) and for a multi-field one (`QUARTILES_OUT_OF_ORDER`, and
+  `VALUE_OUT_OF_RANGE` on statistics), reported once.
+  `VALUE_ABOVE_MAX_SCORE` stays on each offending field.
+- **Precedence** where several checks fail: session (401), then CSRF/Origin
+  (403), then admin rights (403), then an unknown id in the path (404), then
+  a malformed body (400), then the rest.
+  `uploadReport` answers 413, then 415, then 422; `adminApproveReport` answers
+  404, then 409, then 422.
+- **Comment bylines** follow the contract (`김철수` → `김*수`, `남궁민수` →
+  `남**수`, `김수` → `김*`). An account with no display name is masked from its
+  email local part, which the contract does not cover.
+- **Favourites order.** `PUT /me/favorites/order` stores positions; a new pin
+  goes in front of all of them. `DELETE /me` deletes the favourites and leaves
+  open voting requests open.
 - **Log export.** JSON, JSONL, CSV and XLSX are real files. **Parquet is a
   placeholder** (`PAR1` magic around a text note) and is not readable.
 - **Jobs.** `retention` and `archive` delete log rows in memory; `archive`
@@ -178,7 +200,7 @@ mock decides as follows:
 `pnpm test` runs two files:
 
 - `test/unit.test.ts` covers catalog identity and search, term boundaries,
-  statistic rules and file sniffing.
+  statistic rules, byline masking, the sign-in `next` rule and file sniffing.
 - `test/contract.test.ts` calls every operation in the contract against the
   Hono app in-process, covering happy paths and the documented errors. Every
   response is checked against `../api/openapi.yaml`: the status must be

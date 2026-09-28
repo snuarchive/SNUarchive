@@ -28,9 +28,8 @@ export function seoulMidnight(
 }
 
 /**
- * The contract leaves term boundaries to the server. The mock uses whole
- * months: Mar–Jun spring (1), Jul–Aug summer (2), Sep–Dec fall (3), and
- * Jan–Feb the previous year's winter (4).
+ * The contract's `Calendar.currentTerm` rule, by Seoul month: Mar–Jun →
+ * year/1, Jul–Aug → year/2, Sep–Dec → year/3, Jan–Feb → (year − 1)/4.
  */
 export function termAt(ms: number): Term {
   const { year, month } = seoulDate(ms);

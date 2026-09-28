@@ -139,6 +139,8 @@ export const LIMITS = {
 
 export function configBody(): S<"Config"> {
   return {
+    // The mock always serves POST /auth/dev-login.
+    devLoginEnabled: true,
     assessmentKinds: ASSESSMENT_KINDS,
     colleges: COLLEGES,
     semesters: SEMESTERS,

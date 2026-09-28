@@ -42,7 +42,6 @@ export interface SittingRow {
   votingOpenedAt: number | null;
   votingClosesAt: number | null;
   votingEndedAt: number | null;
-  votesCountedFrom: number | null;
   createdAt: number;
 }
 
@@ -122,13 +121,13 @@ export interface FavoriteRow {
   courseId: number;
   createdAt: number;
   /**
-   * Proposed extension: the viewer's own order, lower first. A new pin gets
-   * -createdAt so it goes first until the viewer reorders.
+   * The viewer's own order (`PUT /me/favorites/order`), lower first. A new
+   * pin gets a position below every existing one, so it goes to the front.
    */
   position: number;
 }
 
-/** Proposed extension: favourites in the viewer's order. */
+/** Favourites in the viewer's order. */
 export function byFavoriteOrder(a: FavoriteRow, b: FavoriteRow): number {
   return a.position - b.position || b.createdAt - a.createdAt;
 }

@@ -54,6 +54,16 @@ export function adminLogScenarios(h: H) {
       ).toBe(true);
       expect((await admin.get("/admin/logs?action=bogus")).status).toBe(400);
       expect((await admin.get("/admin/logs?from=yesterday")).status).toBe(400);
+      for (const [f, u] of [
+        [until, from],
+        [from, from],
+      ]) {
+        const inverted = await admin.get(`/admin/logs?from=${f}&until=${u}`);
+        expect(inverted.status).toBe(422);
+        expect(fields(inverted)).toEqual([
+          { field: "until", code: "WINDOW_INVERTED" },
+        ]);
+      }
       expect((await (await h.student()).get("/admin/logs")).status).toBe(403);
       expect((await h.client().get("/admin/logs")).status).toBe(401);
     });
@@ -128,6 +138,13 @@ export function adminLogScenarios(h: H) {
       expect((await admin.get("/admin/logs/export?format=pdf")).status).toBe(
         400,
       );
+      const inverted = await admin.get(
+        "/admin/logs/export?format=csv&from=2026-02-01T00:00:00Z&until=2026-01-01T00:00:00Z",
+      );
+      expect(inverted.status).toBe(422);
+      expect(fields(inverted)).toEqual([
+        { field: "until", code: "WINDOW_INVERTED" },
+      ]);
       expect(
         (await (await h.student()).get("/admin/logs/export?format=json"))
           .status,
@@ -208,6 +225,28 @@ export function adminLogScenarios(h: H) {
           }),
         ),
       ).toEqual([{ field: "token", code: "REQUIRED" }]);
+      // A token is not a filter: at least one filter field besides it.
+      const onlyToken = await admin.post("/admin/logs/delete", {
+        json: { token: p2.token },
+      });
+      expect(onlyToken.status).toBe(422);
+      expect(fields(onlyToken)).toEqual([{ field: "", code: "REQUIRED" }]);
+      expect(
+        fields(
+          await admin.post("/admin/logs/delete", {
+            json: {
+              from: "2026-02-01T00:00:00Z",
+              until: "2026-01-01T00:00:00Z",
+              token: p2.token,
+            },
+          }),
+        ),
+      ).toEqual([{ field: "until", code: "WINDOW_INVERTED" }]);
+      for (const url of ["/admin/logs/delete-preview", "/admin/logs/delete"])
+        expect(
+          (await admin.post(url, { json: { action: "login", token: "x" } }))
+            .status,
+        ).toBe(400);
       expect(
         (
           await admin.post("/admin/logs/delete-preview", {

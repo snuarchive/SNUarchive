@@ -166,12 +166,14 @@ test("field errors describe their input without renaming it", async ({
   await openCourse(page, OPEN_COURSE);
   await page.getByText("직접 제보").click();
   const form = page.locator("details", { hasText: "직접 제보" });
-  await form.getByRole("spinbutton", { name: "Q1", exact: true }).fill("60");
-  await form.getByRole("spinbutton", { name: "Q2", exact: true }).fill("40");
+  // A figure above the full mark is an error on that field (the contract
+  // reports quartile order on the whole form instead).
+  await form.getByRole("spinbutton", { name: "Q2", exact: true }).fill("120");
+  await form.getByRole("spinbutton", { name: "만점", exact: true }).fill("100");
   await form.getByRole("button", { name: "등록" }).click();
   const q2 = form.getByRole("spinbutton", { name: "Q2", exact: true });
   await expect(q2).toHaveAttribute("aria-invalid", "true");
-  await expect(q2).toHaveAccessibleDescription(/순서여야 합니다/);
+  await expect(q2).toHaveAccessibleDescription(/만점보다 클 수 없습니다/);
 });
 
 test("pasted numbers are cleaned like typed ones", async ({ page }) => {

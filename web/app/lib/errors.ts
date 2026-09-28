@@ -44,6 +44,8 @@ const FIELD_MESSAGES: Partial<Record<FieldCode, string>> = {
   INVALID_EMAIL: "이메일을 확인해주세요.",
   CLOSES_AT_IN_PAST: "마감 시각은 지금 이후여야 합니다.",
   WINDOW_INVERTED: "시작이 끝보다 늦습니다.",
+  INVALID_FAVORITE_ORDER:
+    "즐겨찾기 목록이 바뀌었습니다. 새로고침한 뒤 다시 시도해주세요.",
 };
 
 export function errorMessage(error: {
@@ -57,11 +59,35 @@ export function fieldMessage(code: FieldCode): string {
   return FIELD_MESSAGES[code] ?? "입력값을 확인해주세요.";
 }
 
-/** Field errors keyed by field name, first message wins. */
+/**
+ * Field errors keyed by field name, first message wins. The contract uses
+ * the field "" for errors about the body as a whole or several fields at
+ * once (e.g. quartile order); formMessage() picks that one.
+ */
 export function fieldErrors(
   fields: Schemas["FieldError"][],
 ): Record<string, string> {
   const out: Record<string, string> = {};
   for (const field of fields) out[field.field] ??= fieldMessage(field.code);
   return out;
+}
+
+/** The message for the whole form: a "" field error, else the code's. */
+export function formMessage(
+  error: { code: ErrorCode; message: string },
+  fields: Schemas["FieldError"][],
+): string {
+  const whole = fields.find((field) => field.field === "");
+  return whole ? fieldMessage(whole.code) : errorMessage(error);
+}
+
+/**
+ * One line for a failure shown away from any field (a toast, a note by a
+ * filter): the first field error's wording if there is one, else the code's.
+ */
+export function failureText(
+  error: { code: ErrorCode; message: string },
+  fields: Schemas["FieldError"][],
+): string {
+  return fields[0] ? fieldMessage(fields[0].code) : errorMessage(error);
 }

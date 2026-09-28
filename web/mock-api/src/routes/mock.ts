@@ -157,9 +157,12 @@ export function mockRoutes(ctx: Ctx, faults: FaultQueue, reset: () => void) {
   });
 
   // Stand-in for Google's account chooser. Links go to the callback on the app
-  // origin, where the real Google would send the browser.
+  // origin, where the real Google would send the browser. `state` (the `next`
+  // path from /auth/google) is echoed back, as Google echoes OAuth state.
   r.get("/google", (c) => {
     const callback = `${ctx.options.appOrigin}/api/v1/auth/google/callback`;
+    const state = c.req.query("state") ?? "";
+    const stateParam = state ? `&state=${encodeURIComponent(state)}` : "";
     const accounts: [string, string, string][] = [
       ["admin@snu.ac.kr", "관리자", "admin (ADMIN_EMAILS)"],
       ["moderator@snu.ac.kr", "이운영", "admin (DB grant)"],
@@ -179,7 +182,7 @@ export function mockRoutes(ctx: Ctx, faults: FaultQueue, reset: () => void) {
           ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[ch]!,
       );
     const link = (email: string, name: string) =>
-      `${callback}?mock_email=${encodeURIComponent(email)}&mock_name=${encodeURIComponent(name)}`;
+      `${callback}?mock_email=${encodeURIComponent(email)}&mock_name=${encodeURIComponent(name)}${stateParam}`;
     const items = accounts
       .map(
         ([email, name, note]) =>
@@ -195,6 +198,7 @@ ${items}
 <li><a href="${esc(`${callback}?error=access_denied`)}">Cancel</a> <small>→ auth=error</small></li>
 </ul>
 <form method="get" action="${esc(callback)}"><input name="mock_email" type="email" placeholder="any@snu.ac.kr" required>
+${state ? `<input type="hidden" name="state" value="${esc(state)}">` : ""}
 <button>Sign in</button></form></body></html>`);
   });
 

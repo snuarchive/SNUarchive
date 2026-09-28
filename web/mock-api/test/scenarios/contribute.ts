@@ -181,10 +181,7 @@ export function contributeScenarios(h: H) {
       const key = { kindId: KIND.midterm, year: 2026, semester: 3 };
       expect(
         fields(await c.post(url, { json: { ...key, q1: 50, q2: 40, q3: 30 } })),
-      ).toEqual([
-        { field: "q2", code: "QUARTILES_OUT_OF_ORDER" },
-        { field: "q3", code: "QUARTILES_OUT_OF_ORDER" },
-      ]);
+      ).toEqual([{ field: "", code: "QUARTILES_OUT_OF_ORDER" }]);
       expect(
         fields(
           await c.post(url, {
@@ -201,11 +198,7 @@ export function contributeScenarios(h: H) {
             json: { ...key, q1: -1, average: 1.234, maxScore: 10000 },
           }),
         ),
-      ).toEqual([
-        { field: "q1", code: "VALUE_OUT_OF_RANGE" },
-        { field: "average", code: "VALUE_OUT_OF_RANGE" },
-        { field: "maxScore", code: "VALUE_OUT_OF_RANGE" },
-      ]);
+      ).toEqual([{ field: "", code: "VALUE_OUT_OF_RANGE" }]);
       expect(
         fields(await c.post(url, { json: { ...key, note: "  " } })),
       ).toEqual([{ field: "", code: "NOTHING_SUBMITTED" }]);
@@ -323,6 +316,44 @@ export function contributeScenarios(h: H) {
       });
       expect(tooBig.status).toBe(413);
       expect(tooBig.json.error.details.limit).toBe(3 * 1024 * 1024);
+
+      // Precedence: 413, then 415, then 422.
+      const badFields = { kindId: "99", year: "1970", semester: "9" };
+      const bigSvg = new Uint8Array(3 * 1024 * 1024 + 1).fill(0x20);
+      bigSvg.set(new TextEncoder().encode("<svg"));
+      expect(
+        (await c.post(url, { form: uploadForm(new Blob([bigSvg]), "x.svg", badFields) }))
+          .status,
+      ).toBe(413);
+      expect(
+        (await c.post(url, { form: uploadForm(svg, "x.svg", badFields) })).status,
+      ).toBe(415);
+      expect(
+        (await c.post(url, { form: uploadForm(png, "x.png", badFields) })).status,
+      ).toBe(422);
+
+      // Multipart has no null: an empty `number` part means null.
+      const emptyNumber = await c.post(url, {
+        form: uploadForm(png, "x.png", {
+          kindId: "1",
+          number: "",
+          year: "2026",
+          semester: "3",
+        }),
+      });
+      expect(emptyNumber.status).toBe(201);
+      expect(emptyNumber.json).toMatchObject({ number: null, label: "중간" });
+      expect(
+        (
+          await c.post(url, {
+            form: uploadForm(png, "x.png", {
+              kindId: "one",
+              year: "2026",
+              semester: "3",
+            }),
+          })
+        ).status,
+      ).toBe(400);
 
       const pdf = new Blob(["%PDF-1.4\n%%EOF\n"]);
       const invalid = await c.post(url, {

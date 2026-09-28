@@ -3,7 +3,7 @@ import { Form, Link, redirect } from "react-router";
 import { apiContext, failureOf, load, type Schemas } from "~/api/client.server";
 import { FavoriteOrder } from "~/components/FavoriteOrder";
 import { cx } from "~/lib/cx";
-import { errorMessage } from "~/lib/errors";
+import { failureText } from "~/lib/errors";
 import { flashContext } from "~/lib/flash.server";
 import { parseIds } from "~/lib/order";
 import { getConfig, requireMe } from "~/lib/viewer.server";
@@ -57,7 +57,9 @@ export async function action({ request, context }: Route.ActionArgs) {
       : null;
     if (!ids || failure) {
       flash.put(
-        failure ? errorMessage(failure.error) : "순서를 바꾸지 못했습니다.",
+        failure
+          ? failureText(failure.error, failure.fields)
+          : "순서를 바꾸지 못했습니다.",
         "error",
       );
     }

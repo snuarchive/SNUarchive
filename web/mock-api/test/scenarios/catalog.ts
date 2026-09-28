@@ -33,9 +33,11 @@ export function catalogScenarios(h: H) {
         await c.get(`/courses?q=${encodeURIComponent("선형 대수")}&limit=50`)
       ).json.items as Summary[];
       expect(both.length).toBeGreaterThan(0);
+      // Each token within a single field.
       for (const x of both) {
-        const text = h.mock.ctx.catalog.byId.get(x.id)!.searchText;
-        expect(text.includes("선형") && text.includes("대수")).toBe(true);
+        const fields = h.mock.ctx.catalog.byId.get(x.id)!.searchFields;
+        for (const t of ["선형", "대수"])
+          expect(fields.some((f) => f.includes(t))).toBe(true);
       }
       // Tokens match inside title, instructor or department, e.g. an instructor name.
       const byInstructor = (
@@ -109,6 +111,59 @@ export function catalogScenarios(h: H) {
       ).json;
       expect(newbie.favorites).toEqual([]);
       expect((await h.client().get("/courses/home")).status).toBe(401);
+    });
+
+    it("getHomeLists counts requests only on sittings never opened", async () => {
+      const r = refs(h.mock);
+      const c = await h.as(SEED_ACCOUNTS.newbie);
+      const requested = async () =>
+        (await c.get("/courses/home")).json.mostRequested.map(
+          (x: { id: number; openRequestCount: number }) => [
+            x.id,
+            x.openRequestCount,
+          ],
+        );
+      const before = await requested();
+      expect(before.some(([id]: number[]) => id === r.course.id)).toBe(false);
+      const key = (s: typeof r.closedSitting) => ({
+        kindId: s.kindId,
+        number: s.number,
+        year: s.year,
+        semester: s.semester,
+      });
+      // A closed sitting of the first course: the request is recorded, not counted.
+      const closed = h.mock.ctx.state.sittings.find(
+        (s) => s.courseId === r.course.id && s.id === r.closedSitting.id,
+      )!;
+      expect(
+        (
+          await c.post(`/courses/${r.course.id}/voting-requests`, {
+            json: key(closed),
+          })
+        ).status,
+      ).toBe(201);
+      expect(await requested()).toEqual(before);
+      // A never-opened sitting of the same course counts.
+      const never = h.mock.ctx.state.sittings.find(
+        (s) => s.courseId === r.course.id && s.votingOpenedAt === null,
+      )!;
+      await c.post(`/courses/${r.course.id}/voting-requests`, {
+        json: key(never),
+      });
+      expect(await requested()).toContainEqual([r.course.id, 1]);
+    });
+
+    it("getHomeLists shows the first 10 favourites in the user's order", async () => {
+      const r = refs(h.mock);
+      const c = await h.as(SEED_ACCOUNTS.newbie);
+      const ids = r.courses.slice(0, 11).map((x) => x.id);
+      for (const id of ids) await c.put(`/courses/${id}/favorite`);
+      const order = (await c.get("/me/favorites/ids")).json.ids as number[];
+      expect(order).toEqual([...ids].reverse());
+      const home = (await c.get("/courses/home")).json.favorites.map(
+        (x: { id: number }) => x.id,
+      );
+      expect(home).toEqual(order.slice(0, 10));
     });
 
     it("getCourse returns the composite page", async () => {

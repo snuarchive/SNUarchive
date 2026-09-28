@@ -4,7 +4,6 @@ import { clientIp, guard, me } from "../auth";
 import type { Ctx } from "../domain";
 import {
   bumpContent,
-  countedVotes,
   fulfilRequests,
   getOrCreateSitting,
   iso,
@@ -13,9 +12,10 @@ import {
   openVoting,
   requireCourse,
   requireSitting,
+  votingClosedAt,
   votingState,
 } from "../domain";
-import { conflict, fieldError, FieldErrors, malformed } from "../errors";
+import { conflict, FieldErrors, malformed } from "../errors";
 import type { Body } from "../input";
 import {
   checkMaxLength,
@@ -28,9 +28,24 @@ import {
   readSittingKey,
   str,
 } from "../input";
-import { kindById, LIMITS } from "../refdata";
+import { LIMITS } from "../refdata";
 import type { SittingRow } from "../state";
 import * as v from "../views";
+
+/** `adminListSittings` order, which depends on the `votingState` filter. */
+function sittingOrder(state: string): (a: SittingRow, b: SittingRow) => number {
+  switch (state) {
+    case "open": // Soonest deadline first; open-ended last.
+      return (a, b) =>
+        (a.votingClosesAt ?? Infinity) - (b.votingClosesAt ?? Infinity) ||
+        a.id - b.id;
+    case "closed": // Most recently closed or ended first.
+      return (a, b) =>
+        (votingClosedAt(b) ?? 0) - (votingClosedAt(a) ?? 0) || b.id - a.id;
+    default: // `never` and `any`: most recently created first.
+      return (a, b) => b.createdAt - a.createdAt || b.id - a.id;
+  }
+}
 
 /** Reads `VotingOpenInput`; the deadline must be in the future. */
 function readClosesAt(
@@ -103,21 +118,13 @@ export function adminVotingRoutes(ctx: Ctx) {
       throw malformed("votingState가 올바르지 않습니다.");
     const courseId = optionalIdQuery(c, "courseId");
     const now = ctx.now();
-    const order = (id: number) => kindById(id)?.sortOrder ?? 0;
-    const rows = ctx.state.sittings.filter(
-      (s) =>
-        (state === "any" || votingState(s, now) === state) &&
-        (courseId === undefined || s.courseId === courseId),
-    );
-    if (state === "open") {
-      rows.sort(
-        (a, b) =>
-          (a.votingClosesAt ?? Infinity) - (b.votingClosesAt ?? Infinity) ||
-          a.id - b.id,
-      );
-    } else {
-      rows.sort((a: SittingRow, b: SittingRow) => v.sittingSort(a, b, order));
-    }
+    const rows = ctx.state.sittings
+      .filter(
+        (s) =>
+          (state === "any" || votingState(s, now) === state) &&
+          (courseId === undefined || s.courseId === courseId),
+      )
+      .sort(sittingOrder(state));
     return c.json(paginate(c, rows, (s) => v.adminSitting(ctx, s)));
   });
 
@@ -181,39 +188,6 @@ export function adminVotingRoutes(ctx: Ctx) {
     },
   );
 
-  r.put(
-    "/admin/sittings/:sittingId/vote-cutoff",
-    guard(ctx, "adminWrite"),
-    async (c) => {
-      const admin = me(c);
-      const sitting = requireSitting(ctx, pathId(c, "sittingId"));
-      const body = await readJson(c, ["countVotesFrom"]);
-      if (!("countVotesFrom" in body))
-        throw fieldError("countVotesFrom", "REQUIRED");
-      sitting.votesCountedFrom =
-        dateTime(body, "countVotesFrom", { nullable: true }) ?? null;
-      bumpContent(ctx);
-      log(
-        ctx,
-        admin.id,
-        "vote_cutoff_set",
-        {
-          sittingId: sitting.id,
-          countVotesFrom: iso(sitting.votesCountedFrom),
-        },
-        clientIp(c),
-      );
-      const all = ctx.state.votes.filter(
-        (x) => x.sittingId === sitting.id,
-      ).length;
-      return c.json({
-        voting: v.voting(ctx, sitting),
-        difficulty: v.difficulty(ctx, sitting),
-        excludedVoteCount: all - countedVotes(ctx, sitting).length,
-      });
-    },
-  );
-
   r.get("/admin/voting-requests", guard(ctx, "admin"), (c) => {
     const groups = new Map<number, typeof ctx.state.votingRequests>();
     for (const req of ctx.state.votingRequests) {
@@ -260,7 +234,6 @@ export function adminVotingRoutes(ctx: Ctx) {
       const sitting = requireSitting(ctx, pathId(c, "sittingId"));
       const body = await readJson(c, ["note"]);
       const note = str(body, "note", { nullable: true })?.trim() || null;
-      // No 422 is declared for this operation; the schema still caps the note.
       const fe = new FieldErrors();
       checkMaxLength(note, LIMITS.reviewNoteMaxLength, "note", fe);
       fe.throwIfAny();

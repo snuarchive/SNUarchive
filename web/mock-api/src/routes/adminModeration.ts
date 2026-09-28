@@ -84,6 +84,7 @@ export function adminModerationRoutes(ctx: Ctx) {
     guard(ctx, "adminWrite"),
     async (c) => {
       const admin = me(c);
+      // Precedence: 404, then 409, then 422.
       const report = requireReport(pathId(c, "reportId"));
       const body = await readJson(c);
       if (report.status !== "pending")
@@ -93,7 +94,8 @@ export function adminModerationRoutes(ctx: Ctx) {
       const key = checkSittingKey(
         {
           kindId: override.kindId ?? report.kindId,
-          // An explicit null clears the claimed number (e.g. quiz → midterm).
+          // An omitted number keeps the claimed one; only an explicit null
+          // clears it. So quiz 2 → midterm needs `number: null`, or it is 422.
           number: "number" in body ? override.number : report.number,
           year: override.year ?? report.year,
           semester: override.semester ?? report.semester,
@@ -163,7 +165,6 @@ export function adminModerationRoutes(ctx: Ctx) {
         throw conflict("REPORT_ALREADY_REVIEWED");
       const reviewNote =
         str(body, "reviewNote", { nullable: true })?.trim() || null;
-      // The contract declares no 422 for this operation, but the schema caps the note.
       const fe = new FieldErrors();
       checkMaxLength(reviewNote, LIMITS.reviewNoteMaxLength, "reviewNote", fe);
       fe.throwIfAny();
@@ -271,7 +272,6 @@ export function adminModerationRoutes(ctx: Ctx) {
       if (hidden === undefined) throw malformed("hidden이 필요합니다.");
       const reason = str(body, "reason", { nullable: true })?.trim() || null;
       if (hidden) {
-        // The contract declares no 422 for this operation, but the schema caps the reason.
         const fe = new FieldErrors();
         checkMaxLength(reason, LIMITS.hiddenReasonMaxLength, "reason", fe);
         fe.throwIfAny();

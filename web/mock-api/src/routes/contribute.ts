@@ -172,6 +172,7 @@ export function contributeRoutes(ctx: Ctx) {
         throw malformed(`${name}: 텍스트 필드여야 합니다.`);
       return val;
     };
+    // Multipart has no null: an omitted part and an empty string both mean null.
     const intField = (name: string): number | null | undefined => {
       const s = field(name);
       if (s === undefined || s === "") return s === "" ? null : undefined;
@@ -179,6 +180,7 @@ export function contributeRoutes(ctx: Ctx) {
       return Number(s);
     };
 
+    // Precedence: 413 (size), then 415 (type), then 422 (fields).
     const file = form.file;
     if (file !== undefined && !(file instanceof File))
       throw malformed("file: 파일이어야 합니다.");

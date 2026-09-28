@@ -210,13 +210,18 @@ export function completeFigures(p: Partial<Figures>): Figures {
   };
 }
 
-/** Mirrors the stat_reports CHECK constraints. */
+/**
+ * Mirrors the stat_reports CHECK constraints. `VALUE_OUT_OF_RANGE` and
+ * `QUARTILES_OUT_OF_ORDER` each come from one constraint over several
+ * columns, so, as the contract says, they are reported once on the field `""`.
+ * `VALUE_ABOVE_MAX_SCORE` stays per field.
+ */
 export function checkFigures(f: Figures, fe: FieldErrors): void {
   for (const k of FIGURE_KEYS) {
     const v = f[k];
     if (v === null) continue;
     if (v < 0 || v > LIMITS.scoreMax || Math.round(v * 100) / 100 !== v)
-      fe.add(k, "VALUE_OUT_OF_RANGE");
+      fe.add("", "VALUE_OUT_OF_RANGE");
   }
   if (f.note !== null && cpLength(f.note) > LIMITS.statisticNoteMaxLength)
     fe.add("note", "TOO_LONG");
@@ -225,7 +230,7 @@ export function checkFigures(f: Figures, fe: FieldErrors): void {
   for (const k of ["q1", "q2", "q3", "q4"] as const) {
     const v = f[k];
     if (v === null) continue;
-    if (prev !== null && v < prev) fe.add(k, "QUARTILES_OUT_OF_ORDER");
+    if (prev !== null && v < prev) fe.add("", "QUARTILES_OUT_OF_ORDER");
     prev = Math.max(prev ?? v, v);
   }
   if (f.maxScore !== null) {

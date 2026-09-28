@@ -16,6 +16,7 @@ export function sessionScenarios(h: H) {
         ).labelFormat,
       ).toBe("{n}차 시험");
       expect(res.json.upload.maxBytes).toBe(3 * 1024 * 1024);
+      expect(res.json.devLoginEnabled).toBe(true);
     });
 
     it("startGoogleLogin redirects to the mock account chooser", async () => {
@@ -31,6 +32,60 @@ export function sessionScenarios(h: H) {
       expect(html).toContain(
         `${h.mock.ctx.options.appOrigin}/api/v1/auth/google/callback?mock_email=`,
       );
+    });
+
+    it("startGoogleLogin carries a valid next through to the callback", async () => {
+      const app = h.mock.ctx.options.appOrigin;
+      const start = async (next: string) =>
+        (
+          await h.client().get(`/auth/google?next=${encodeURIComponent(next)}`)
+        ).headers.get("location");
+      const next = "/courses/12?tab=stats#comments";
+      const location = await start(next);
+      expect(location).toBe(
+        `${h.mock.ctx.options.mockOrigin}/__mock/google?state=${encodeURIComponent(next)}`,
+      );
+      const page = Buffer.from(
+        (await h.client().get(new URL(location!).pathname + new URL(location!).search)).bytes,
+      ).toString("utf8");
+      expect(page).toContain(`&amp;state=${encodeURIComponent(next)}`);
+
+      const ok = await h
+        .client()
+        .get(
+          `/auth/google/callback?mock_email=student%40snu.ac.kr&state=${encodeURIComponent(next)}`,
+        );
+      expect(ok.headers.get("location")).toBe(
+        `${app}/courses/12?tab=stats&auth=ok#comments`,
+      );
+      const plain = await h
+        .client()
+        .get("/auth/google/callback?mock_email=student%40snu.ac.kr&state=%2Fcourses%2F12");
+      expect(plain.headers.get("location")).toBe(`${app}/courses/12?auth=ok`);
+      // Failures still go to the root.
+      const gmail = await h
+        .client()
+        .get("/auth/google/callback?mock_email=someone%40gmail.com&state=%2Fcourses%2F12");
+      expect(gmail.headers.get("location")).toBe(`${app}/?auth=forbidden`);
+
+      // Anything off the rule is ignored.
+      const chooser = `${h.mock.ctx.options.mockOrigin}/__mock/google`;
+      for (const bad of [
+        "courses/12",
+        "//evil.example/x",
+        "/\\evil.example",
+        "/a\\b",
+        "/a b",
+        "/a\tb",
+        "/a\u007fb",
+        "https://evil.example/",
+        "",
+      ])
+        expect(await start(bad)).toBe(chooser);
+      const forged = await h
+        .client()
+        .get("/auth/google/callback?mock_email=student%40snu.ac.kr&state=%2F%2Fevil.example");
+      expect(forged.headers.get("location")).toBe(`${app}/?auth=ok`);
     });
 
     it("googleLoginCallback signs in SNU accounts and refuses others", async () => {
@@ -91,6 +146,24 @@ export function sessionScenarios(h: H) {
         field: "email",
         code: "REQUIRED",
       });
+      expect(
+        (await h.client().post("/auth/dev-login", { json: "{" })).status,
+      ).toBe(400);
+    });
+
+    it("devLogin checks Origin but needs no CSRF token", async () => {
+      const json = { email: "student@snu.ac.kr" };
+      // The client has no cookies yet, so no token is sent.
+      expect(
+        (await h.client().post("/auth/dev-login", { json })).status,
+      ).toBe(204);
+      for (const origin of [null, "https://evil.example"]) {
+        const res = await h
+          .client()
+          .post("/auth/dev-login", { json, origin });
+        expect(res.status).toBe(403);
+        expect(res.json.error.code).toBe("CSRF_INVALID");
+      }
     });
 
     it("ADMIN_EMAILS decides env admins", async () => {
@@ -234,7 +307,36 @@ export function sessionScenarios(h: H) {
       expect(again.id).not.toBe(r.student.id);
     });
 
-    it("listMyFavorites pages most recently pinned first", async () => {
+    it("deleteMe deletes favourites but leaves open voting requests open", async () => {
+      const r = refs(h.mock);
+      const st = () => h.mock.ctx.state;
+      const openRequests = () =>
+        st().votingRequests.filter(
+          (x) => x.userId === r.student.id && x.status === "open",
+        ).length;
+      const requestsBefore = openRequests();
+      expect(requestsBefore).toBeGreaterThan(0);
+      expect(
+        st().favorites.some((f) => f.userId === r.student.id),
+      ).toBe(true);
+      const c = await h.student();
+      await c.del("/me", { headers: { "x-confirm-delete": "true" } });
+      expect(st().favorites.some((f) => f.userId === r.student.id)).toBe(
+        false,
+      );
+      expect(openRequests()).toBe(requestsBefore);
+      // They still count as demand.
+      const groups = (await (await h.admin()).get("/admin/voting-requests"))
+        .json.items;
+      expect(
+        groups.find(
+          (g: { sitting: { id: number } }) =>
+            g.sitting.id === r.requestedSitting.id,
+        ).openCount,
+      ).toBe(4);
+    });
+
+    it("listMyFavorites pages in the user's order", async () => {
       const r = refs(h.mock);
       const c = await h.student();
       const first = await c.get("/me/favorites?limit=2");
@@ -261,6 +363,93 @@ export function sessionScenarios(h: H) {
       expect(res.json.ids).toHaveLength(4);
       expect(res.json.ids[0]).toBe(refs(h.mock).course.id);
       expect((await h.client().get("/me/favorites/ids")).status).toBe(401);
+    });
+
+    it("reorderMyFavorites reorders the favourites everywhere they are listed", async () => {
+      const c = await h.student();
+      const before = (await c.get("/me/favorites/ids")).json.ids as number[];
+      expect(before.length).toBeGreaterThan(1);
+      const reversed = [...before].reverse();
+
+      const res = await c.put("/me/favorites/order", {
+        json: { ids: reversed },
+      });
+      expect(res.status).toBe(204);
+
+      expect((await c.get("/me/favorites/ids")).json.ids).toEqual(reversed);
+      const page = (await c.get("/me/favorites")).json;
+      expect(page.items.map((x: { id: number }) => x.id)).toEqual(reversed);
+      const home = (await c.get("/courses/home")).json;
+      expect(home.favorites.map((x: { id: number }) => x.id)).toEqual(
+        reversed,
+      );
+    });
+
+    it("reorderMyFavorites puts a newly pinned course first", async () => {
+      const c = await h.student();
+      const before = (await c.get("/me/favorites/ids")).json.ids as number[];
+      await c.put("/me/favorites/order", {
+        json: { ids: [...before].reverse() },
+      });
+      const candidate = refs(h.mock).courses.find(
+        (x) => !before.includes(x.id),
+      )!;
+      await c.put(`/courses/${candidate.id}/favorite`);
+      expect((await c.get("/me/favorites/ids")).json.ids).toEqual([
+        candidate.id,
+        ...[...before].reverse(),
+      ]);
+    });
+
+    it("reorderMyFavorites refuses anything but exactly the viewer's favourites", async () => {
+      const c = await h.student();
+      const ids = (await c.get("/me/favorites/ids")).json.ids as number[];
+      const other = refs(h.mock).courses.find((x) => !ids.includes(x.id))!.id;
+      for (const wrong of [
+        ids.slice(1), // missing
+        [...ids, other], // extra
+        [...ids.slice(1), ids[1]], // duplicate
+        [],
+      ]) {
+        const res = await c.put("/me/favorites/order", {
+          json: { ids: wrong },
+        });
+        expect(res.status).toBe(422);
+        expect(res.json.error.details.fields).toEqual([
+          { field: "ids", code: "INVALID_FAVORITE_ORDER" },
+        ]);
+      }
+      // Nothing changed.
+      expect((await c.get("/me/favorites/ids")).json.ids).toEqual(ids);
+
+      for (const json of [
+        { ids: "1,2" },
+        { ids: [1.5] },
+        { ids: ["1"] },
+        { ids: [null] },
+        {},
+        { ids, extra: true },
+        "{",
+      ]) {
+        const res = await c.put("/me/favorites/order", { json });
+        expect(res.status).toBe(400);
+        expect(res.json.error.code).toBe("MALFORMED_REQUEST");
+      }
+    });
+
+    it("reorderMyFavorites needs a session and the CSRF token", async () => {
+      const c = await h.student();
+      const ids = (await c.get("/me/favorites/ids")).json.ids as number[];
+      const res = await c.put("/me/favorites/order", {
+        json: { ids },
+        csrf: false,
+      });
+      expect(res.status).toBe(403);
+      expect(res.json.error.code).toBe("CSRF_INVALID");
+      expect(
+        (await h.client().put("/me/favorites/order", { json: { ids } }))
+          .status,
+      ).toBe(401);
     });
   });
 }

@@ -122,3 +122,44 @@ export function me(c: Context<Env>): UserRow {
   if (!user) throw unauthenticated();
   return user;
 }
+
+/** `POST /auth/dev-login` checks only Origin: there is no session, so no CSRF token. */
+export function checkOrigin(c: Context<Env>, ctx: Ctx): void {
+  if (c.req.header("origin") !== ctx.options.appOrigin) throw csrfInvalid();
+}
+
+// U+0000–U+001F, U+007F and space, as the contract lists them.
+const UNSAFE_NEXT_CHAR = /[\u0000-\u001f\u007f ]/;
+
+/**
+ * The `next` rule of `GET /auth/google`: a same-origin path, or null when the
+ * value must be ignored.
+ */
+export function safeNext(
+  next: string | undefined,
+  appOrigin: string,
+): string | null {
+  if (!next || next[0] !== "/") return null;
+  if (next[1] === "/" || next[1] === "\\") return null;
+  if (next.includes("\\") || UNSAFE_NEXT_CHAR.test(next)) return null;
+  try {
+    if (new URL(next, appOrigin).origin !== new URL(appOrigin).origin)
+      return null;
+  } catch {
+    return null;
+  }
+  return next;
+}
+
+/** Adds `auth=ok` as a query parameter, keeping any query string and fragment. */
+export function withAuthOk(next: string): string {
+  const hash = next.indexOf("#");
+  const path = hash < 0 ? next : next.slice(0, hash);
+  const fragment = hash < 0 ? "" : next.slice(hash);
+  const sep = !path.includes("?")
+    ? "?"
+    : path.endsWith("?") || path.endsWith("&")
+      ? ""
+      : "&";
+  return `${path}${sep}auth=ok${fragment}`;
+}

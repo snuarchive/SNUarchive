@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { barChartPng } from "../../src/files";
 import { KIND } from "../../src/refdata";
 import type { H } from "../harness";
 import { refs, UNKNOWN_ID } from "../harness";
@@ -167,6 +168,15 @@ export function adminModerationScenarios(h: H) {
       const report = h.mock.ctx.state.reports.filter(
         (x) => x.status === "pending",
       )[1];
+      expect(report.number).not.toBeNull();
+      // An omitted number keeps the claimed one, which an unnumbered kind refuses.
+      expect(
+        fields(
+          await admin.post(`/admin/reports/${report.id}/approve`, {
+            json: { kindId: KIND.midterm, average: 1 },
+          }),
+        ),
+      ).toEqual([{ field: "number", code: "INVALID_ASSESSMENT_NUMBER" }]);
       const override = await admin.post(`/admin/reports/${report.id}/approve`, {
         json: { kindId: KIND.quiz, number: 5, average: 7, maxScore: 10 },
       });
@@ -175,14 +185,52 @@ export function adminModerationScenarios(h: H) {
         label: "퀴즈 5",
         number: 5,
       });
+      // Precedence: 404, then 409, then 422.
+      const invalid = { q1: 9, q2: 1 };
+      expect(
+        (
+          await admin.post(`/admin/reports/${UNKNOWN_ID}/approve`, {
+            json: invalid,
+          })
+        ).status,
+      ).toBe(404);
+      expect(
+        (
+          await admin.post(`/admin/reports/${report.id}/approve`, {
+            json: invalid,
+          })
+        ).json.error.code,
+      ).toBe("REPORT_ALREADY_REVIEWED");
+
+      // `number: null` clears the claimed number explicitly.
+      const form = new FormData();
+      form.append("file", new Blob([barChartPng([1, 2])]), "q.png");
+      for (const [k, v] of Object.entries({
+        kindId: String(KIND.quiz),
+        number: "2",
+        year: "2026",
+        semester: "3",
+      }))
+        form.append(k, v);
+      const upload = (
+        await (await h.student()).post(`/courses/${r.course.id}/reports`, {
+          form,
+        })
+      ).json;
+      const cleared = await admin.post(`/admin/reports/${upload.id}/approve`, {
+        json: { kindId: KIND.midterm, number: null, average: 1 },
+      });
+      expect(cleared.status).toBe(201);
+      expect(cleared.json.sitting).toMatchObject({ label: "중간", number: null });
+
       const pending = r.pendingReport;
       expect(
         fields(
           await admin.post(`/admin/reports/${pending.id}/approve`, {
-            json: { q1: 9, q2: 1 },
+            json: invalid,
           }),
         ),
-      ).toEqual([{ field: "q2", code: "QUARTILES_OUT_OF_ORDER" }]);
+      ).toEqual([{ field: "", code: "QUARTILES_OUT_OF_ORDER" }]);
       expect(
         fields(
           await admin.post(`/admin/reports/${pending.id}/approve`, {
@@ -219,6 +267,13 @@ export function adminModerationScenarios(h: H) {
     it("adminRejectReport closes the upload", async () => {
       const r = refs(h.mock);
       const admin = await h.admin();
+      expect(
+        fields(
+          await admin.post(`/admin/reports/${r.pendingReport.id}/reject`, {
+            json: { reviewNote: "가".repeat(501) },
+          }),
+        ),
+      ).toEqual([{ field: "reviewNote", code: "TOO_LONG" }]);
       const res = await admin.post(
         `/admin/reports/${r.pendingReport.id}/reject`,
         { json: { reviewNote: "흐림" } },
@@ -296,7 +351,7 @@ export function adminModerationScenarios(h: H) {
       const cleared = await admin.patch(url, { json: { q1: null } });
       expect(cleared.json.q1).toBeNull();
       expect(fields(await admin.patch(url, { json: { q4: 1 } }))).toEqual([
-        { field: "q4", code: "QUARTILES_OUT_OF_ORDER" },
+        { field: "", code: "QUARTILES_OUT_OF_ORDER" },
       ]);
       expect(fields(await admin.patch(url, { json: {} }))).toEqual([
         { field: "", code: "REQUIRED" },
@@ -401,6 +456,13 @@ export function adminModerationScenarios(h: H) {
       });
       expect(show.json).toMatchObject({ hiddenReason: null, hiddenAt: null });
       expect(await visibleIds()).toContain(st.id);
+      expect(
+        fields(
+          await admin.put(`/admin/statistics/${st.id}/hidden`, {
+            json: { hidden: true, reason: "가".repeat(501) },
+          }),
+        ),
+      ).toEqual([{ field: "reason", code: "TOO_LONG" }]);
       expect(
         (
           await admin.put(`/admin/statistics/${UNKNOWN_ID}/hidden`, {

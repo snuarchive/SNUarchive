@@ -408,13 +408,7 @@ export function seedState(ctx: Ctx): State {
     t: Term,
     createdAt: number,
     voting: Partial<
-      Pick<
-        SittingRow,
-        | "votingOpenedAt"
-        | "votingClosesAt"
-        | "votingEndedAt"
-        | "votesCountedFrom"
-      >
+      Pick<SittingRow, "votingOpenedAt" | "votingClosesAt" | "votingEndedAt">
     > = {},
   ): SittingRow => {
     const s: SittingRow = {
@@ -427,7 +421,6 @@ export function seedState(ctx: Ctx): State {
       votingOpenedAt: null,
       votingClosesAt: null,
       votingEndedAt: null,
-      votesCountedFrom: null,
       createdAt,
       ...voting,
     };
@@ -442,12 +435,6 @@ export function seedState(ctx: Ctx): State {
       addLog(moderator.id, "voting_close", s.votingEndedAt, {
         sittingId: s.id,
       });
-    if (s.votesCountedFrom !== null) {
-      addLog(admin.id, "vote_cutoff_set", s.votesCountedFrom + DAY_MS, {
-        sittingId: s.id,
-        countVotesFrom: iso(s.votesCountedFrom),
-      });
-    }
     return s;
   };
 
@@ -464,11 +451,10 @@ export function seedState(ctx: Ctx): State {
     votingClosesAt: r1Start + 72 * DAY_MS,
     votingEndedAt: r1Start + 70 * DAY_MS,
   });
-  // Closed because its deadline passed; a cutoff excludes the earliest votes.
+  // Closed because its deadline passed.
   const s3 = sitting(C0, KIND.midterm, null, R1, r1Start, {
     votingOpenedAt: r1Start + 2 * DAY_MS,
     votingClosesAt: r1Start + 12 * DAY_MS,
-    votesCountedFrom: r1Start + 4 * DAY_MS,
   });
   const s4 = sitting(C0, KIND.quiz, 3, R2, r2Start);
   // Open-ended.

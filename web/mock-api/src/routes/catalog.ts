@@ -114,7 +114,8 @@ export function catalogRoutes(ctx: Ctx) {
     for (const req of ctx.state.votingRequests) {
       if (req.status !== "open") continue;
       const s = sittingById.get(req.sittingId)!;
-      if (votingState(s, now) === "open") continue;
+      // Only sittings whose voting has never been opened count.
+      if (votingState(s, now) !== "never") continue;
       requestCount.set(s.courseId, (requestCount.get(s.courseId) ?? 0) + 1);
     }
     const mostRequested = [...requestCount.entries()]

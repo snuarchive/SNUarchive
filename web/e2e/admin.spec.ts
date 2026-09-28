@@ -134,3 +134,14 @@ test("a statistic moves to a course found by search", async ({ page }) => {
   await card.getByRole("button", { name: "옮기기" }).click();
   await expectToast(page, "통계량을 옮겼습니다.");
 });
+
+test("a log filter with its start after its end is explained", async ({
+  page,
+}) => {
+  await page.goto(
+    "/admin/logs/entries?from=2026-09-02T00:00&until=2026-09-01T00:00",
+  );
+  await expect(page.getByRole("alert")).toContainText(
+    "시작이 끝보다 늦습니다.",
+  );
+});

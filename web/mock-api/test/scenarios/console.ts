@@ -23,6 +23,17 @@ export function consoleScenarios(h: H) {
       });
       expect(d.coverage.withStatistics).toBeGreaterThan(5);
       expect(d.users).toMatchObject({ admins: 2 });
+      // An env address that has never signed in is not counted.
+      const ghost = h.app({
+        adminEmails: ["admin@snu.ac.kr", "ghost@snu.ac.kr"],
+      });
+      expect(
+        (
+          await (
+            await h.as(SEED_ACCOUNTS.admin, ghost)
+          ).get("/admin/dashboard")
+        ).json.users.admins,
+      ).toBe(2);
       expect(d.trend.statistics).toHaveLength(d.trend.days);
       expect(d.catalog.lastImport.status).toBe("succeeded");
       expect((await (await h.student()).get("/admin/dashboard")).status).toBe(
@@ -37,6 +48,18 @@ export function consoleScenarios(h: H) {
       const live = h.mock.ctx.state.users.filter((u) => !u.deletedAt).length;
       expect(res.totalUsers).toBe(live);
       expect(res.withProfile).toBeLessThan(live);
+      // A college or an admission year (either) is enough.
+      const newbie = await h.as(SEED_ACCOUNTS.newbie);
+      await newbie.patch("/me", { json: { admissionYear: 2026 } });
+      expect(
+        (await admin.get("/admin/users/summary")).json.withProfile,
+      ).toBe(res.withProfile + 1);
+      await newbie.patch("/me", {
+        json: { admissionYear: null, college: "공과대학" },
+      });
+      expect(
+        (await admin.get("/admin/users/summary")).json.withProfile,
+      ).toBe(res.withProfile + 1);
       expect(
         res.byCollege.find((x: { college: string }) => x.college === "공과대학")
           .count,
@@ -188,6 +211,13 @@ export function consoleScenarios(h: H) {
       expect(env.status).toBe(409);
       expect(env.json.error.code).toBe("ENV_ADMIN_PROTECTED");
       expect((await admin.del(`/admin/admins/${UNKNOWN_ID}`)).status).toBe(404);
+      // An account that is not an admin is 404, not a no-op.
+      const plain = await admin.del(`/admin/admins/${r.student.id}`);
+      expect(plain.status).toBe(404);
+      expect(plain.json.error.code).toBe("NOT_FOUND");
+      expect(
+        (await admin.del(`/admin/admins/${r.deletedUser.id}`)).status,
+      ).toBe(404);
       expect(
         (await (await h.student()).del(`/admin/admins/${r.moderator.id}`))
           .status,
@@ -202,6 +232,18 @@ export function consoleScenarios(h: H) {
       const last = await lone.del(`/admin/admins/${r.moderator.id}`);
       expect(last.status).toBe(409);
       expect(last.json.error.code).toBe("LAST_ADMIN_PROTECTED");
+
+      // An env address that has never signed in is not another admin.
+      const ghost = h.app({ adminEmails: ["ghost@snu.ac.kr"] });
+      const self = await h.as(SEED_ACCOUNTS.moderator, ghost);
+      const refused = await self.del(`/admin/admins/${r.moderator.id}`);
+      expect(refused.status).toBe(409);
+      expect(refused.json.error.code).toBe("LAST_ADMIN_PROTECTED");
+      // Once it has signed in, it counts.
+      await h.as("ghost@snu.ac.kr", ghost);
+      expect(
+        (await self.del(`/admin/admins/${r.moderator.id}`)).status,
+      ).toBe(204);
     });
 
     it("adminGetCatalogStatus reports the last import", async () => {

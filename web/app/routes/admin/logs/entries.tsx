@@ -1,11 +1,12 @@
 import { Form, Link, useLocation } from "react-router";
 
-import { apiContext, load } from "~/api/client.server";
+import { apiContext, failureOf, load } from "~/api/client.server";
 import { MoreLink, pageEndpoint } from "~/components/admin/MoreLink";
 import s from "~/components/admin/admin.module.css";
 import { ACTION_LABELS, actionLabel, metadataText } from "~/lib/activity";
 import { cursorOf } from "~/lib/admin.server";
 import { cx } from "~/lib/cx";
+import { failureText } from "~/lib/errors";
 import { formatDate, formatDateTime } from "~/lib/format";
 import { filterQuery, isEmptyFilter, readLogFilter } from "~/lib/logFilter";
 import { usePagedList } from "~/lib/usePagedList";
@@ -19,14 +20,23 @@ const FORMATS = ["json", "jsonl", "csv", "xlsx", "parquet"] as const;
 export async function loader({ request, context }: Route.LoaderArgs) {
   const params = pageUrl(request).searchParams;
   const filter = readLogFilter(params);
-  const page = await load(
-    context.get(apiContext).client.GET("/admin/logs", {
-      params: {
-        query: { ...filter, limit: PAGE_SIZE, cursor: cursorOf(request) },
-      },
-    }),
-  );
-  return { page, filtered: !isEmptyFilter(filter) };
+  const result = await context.get(apiContext).client.GET("/admin/logs", {
+    params: {
+      query: { ...filter, limit: PAGE_SIZE, cursor: cursorOf(request) },
+    },
+  });
+  // A bad filter (e.g. start after end) is the admin's to fix, not a failed
+  // load: show it by the filter with an empty list.
+  const failure = failureOf(result);
+  if (failure?.status === 422) {
+    return {
+      page: { items: [], nextCursor: null },
+      filtered: !isEmptyFilter(filter),
+      filterError: failureText(failure.error, failure.fields),
+    };
+  }
+  const page = await load(Promise.resolve(result));
+  return { page, filtered: !isEmptyFilter(filter), filterError: null };
 }
 
 function FilterForm() {
@@ -103,6 +113,11 @@ export default function Entries({ loaderData }: Route.ComponentProps) {
         </span>
       </div>
       <FilterForm />
+      {loaderData.filterError && (
+        <p className={ui.fieldError} role="alert">
+          {loaderData.filterError}
+        </p>
+      )}
       <div className={s.actions}>
         {/* Browser downloads through the same-origin API path. */}
         {FORMATS.map((format) => {

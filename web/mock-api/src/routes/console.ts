@@ -8,6 +8,7 @@ import {
   findUser,
   isAdmin,
   iso,
+  liveAdmins,
   liveUserByEmail,
   log,
   votingState,
@@ -119,7 +120,8 @@ export function consoleRoutes(ctx: Ctx) {
       },
       users: {
         total: liveUsers.length,
-        admins: adminEntries(ctx).length,
+        // Live admin accounts; an env address never signed in is not counted.
+        admins: liveAdmins(ctx).length,
         activeThisTerm: liveUsers.filter(
           (u) => u.lastSeenAt !== null && u.lastSeenAt >= since,
         ).length,
@@ -198,12 +200,13 @@ export function consoleRoutes(ctx: Ctx) {
     const user = findUser(ctx, pathId(c, "userId"));
     if (!user || user.deletedAt) throw notFound("계정을 찾을 수 없습니다.");
     const source = adminSource(ctx, user);
+    // An account that is not an admin is 404 too.
+    if (source === null) throw notFound("관리자가 아닌 계정입니다.");
     if (source === "env" || source === "both")
       throw conflict("ENV_ADMIN_PROTECTED");
-    // Revoking a non-admin is a no-op, mirroring the idempotent grant.
-    if (source === null) return c.body(null, 204);
-    const remaining = adminEntries(ctx).filter((e) => e.email !== user.email);
-    if (!remaining.length) throw conflict("LAST_ADMIN_PROTECTED");
+    // An env address that has never signed in has no account and does not count.
+    if (!liveAdmins(ctx).some((u) => u.id !== user.id))
+      throw conflict("LAST_ADMIN_PROTECTED");
     user.dbAdmin = false;
     user.sessionEpoch++;
     log(ctx, admin.id, "admin_revoke", { userId: user.id }, clientIp(c));

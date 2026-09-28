@@ -14,8 +14,8 @@ export interface CatalogCourse {
   offerings: S<"Offering">[];
   latestTerm: Term;
   titleNorm: string;
-  /** Normalized title, instructor and departments joined by a separator no token can contain. */
-  searchText: string;
+  /** Normalized title, instructor and each department: a token must match within one. */
+  searchFields: string[];
   listed: boolean;
 }
 
@@ -40,7 +40,6 @@ interface SourceRow {
 }
 
 export const PLACEHOLDER_INSTRUCTOR = "미정";
-const SEP = "\u0001";
 
 /** Lower-case, NFC, every whitespace character removed. */
 export function normalize(s: string): string {
@@ -169,9 +168,7 @@ function buildCatalog(dir: string): Catalog {
         semester: latest.semester as Term["semester"],
       },
       titleNorm: normalize(acc.title),
-      searchText: [acc.title, acc.instructor, ...departments]
-        .map(normalize)
-        .join(SEP),
+      searchFields: [acc.title, acc.instructor, ...departments].map(normalize),
       listed: true,
     };
   });
@@ -198,16 +195,19 @@ function termValue(t: Term): number {
 }
 
 /**
- * Every whitespace-separated token must be a substring of the course's
- * search text. Ordered by: title starts with the first token, latest
- * offering (desc), title, id.
+ * Every whitespace-separated token must be a substring of one field: the
+ * title, the instructor or one department name; never across two. Different
+ * tokens may match different fields. Ordered by: title starts with the first
+ * token, latest offering (desc), title, id.
  */
 export function searchCatalog(catalog: Catalog, q: string): CatalogCourse[] {
   const tokens = q.split(/\s+/u).map(normalize).filter(Boolean);
   if (!tokens.length) return [];
   const first = tokens[0];
   const hits = catalog.courses.filter(
-    (c) => c.listed && tokens.every((t) => c.searchText.includes(t)),
+    (c) =>
+      c.listed &&
+      tokens.every((t) => c.searchFields.some((f) => f.includes(t))),
   );
   return hits.sort((a, b) => {
     const pa = a.titleNorm.startsWith(first) ? 0 : 1;

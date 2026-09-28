@@ -3,7 +3,10 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { safeNext, withAuthOk } from "../src/auth";
 import { termAt } from "../src/calendar";
+import { maskName } from "../src/domain";
+import type { UserRow } from "../src/state";
 import {
   identityKey,
   loadCatalog,
@@ -101,6 +104,51 @@ describe("catalog", () => {
     expect(titles("철학과")).toEqual(["논리와 비판적 사고"]);
     // Tokens never match across the title/instructor boundary.
     expect(titles("1김")).toEqual([]);
+    // Nor across two department names (물리·천문학부 | 수리과학부).
+    expect(titles("학부수리")).toEqual([]);
+    expect(titles("천문 수리")).toEqual(["미적분학 1"]);
+  });
+});
+
+describe("bylines", () => {
+  const user = (displayName: string | null, email = "x@snu.ac.kr") =>
+    ({ displayName, email, deletedAt: null }) as UserRow;
+  it("keep the first and last character, one * per character between", () => {
+    expect(maskName(user("김철수"))).toBe("김*수");
+    expect(maskName(user("남궁민수"))).toBe("남**수");
+    expect(maskName(user("김수"))).toBe("김*");
+    expect(maskName(user("김"))).toBe("김");
+    expect(maskName({ ...user("김철수"), deletedAt: 1 })).toBeNull();
+  });
+});
+
+describe("sign-in next", () => {
+  const app = "http://localhost:5173";
+  it("accepts same-origin paths only", () => {
+    for (const ok of ["/", "/courses/12", "/a?b=1#c", "/%2F%2Fx"])
+      expect(safeNext(ok, app)).toBe(ok);
+    for (const bad of [
+      undefined,
+      "",
+      "courses",
+      "//evil.example",
+      "/\\evil.example",
+      "/a\\b",
+      "/a b",
+      "/a\nb",
+      "/a\u0000b",
+      "/a\u007fb",
+      "http://localhost:5173/x",
+    ])
+      expect(safeNext(bad, app)).toBeNull();
+  });
+  it("adds auth=ok as a query parameter, keeping query and fragment", () => {
+    expect(withAuthOk("/")).toBe("/?auth=ok");
+    expect(withAuthOk("/courses/12")).toBe("/courses/12?auth=ok");
+    expect(withAuthOk("/c?tab=1")).toBe("/c?tab=1&auth=ok");
+    expect(withAuthOk("/c?tab=1#x")).toBe("/c?tab=1&auth=ok#x");
+    expect(withAuthOk("/c#x?y")).toBe("/c?auth=ok#x?y");
+    expect(withAuthOk("/c?")).toBe("/c?auth=ok");
   });
 });
 
@@ -125,6 +173,17 @@ describe("calendar", () => {
     });
     // 23:30 UTC on Aug 31 is already Sep 1 in Seoul.
     expect(at("2026-08-31T23:30:00Z")).toEqual({ year: 2026, semester: 3 });
+    // Every month boundary of the contract's rule.
+    const cases: [string, number, number][] = [
+      ["2026-01-01T00:00:00+09:00", 2025, 4],
+      ["2026-06-30T23:59:00+09:00", 2026, 1],
+      ["2026-07-01T00:00:00+09:00", 2026, 2],
+      ["2026-08-31T23:59:00+09:00", 2026, 2],
+      ["2026-09-01T00:00:00+09:00", 2026, 3],
+      ["2026-12-31T23:59:00+09:00", 2026, 3],
+    ];
+    for (const [when, year, semester] of cases)
+      expect(at(when)).toEqual({ year, semester });
   });
 });
 
@@ -139,15 +198,17 @@ describe("statistic rules", () => {
     expect(check({ q1: 10, q3: 30, maxScore: 30 })).toEqual([]);
   });
   it("rejects disorder, values over the maximum and empty submissions", () => {
-    expect(check({ q1: 30, q3: 10 })).toEqual([
-      { field: "q3", code: "QUARTILES_OUT_OF_ORDER" },
+    // Multi-field and whole-body errors use the field "".
+    expect(check({ q1: 30, q2: 20, q3: 10 })).toEqual([
+      { field: "", code: "QUARTILES_OUT_OF_ORDER" },
     ]);
-    expect(check({ average: 12, maxScore: 10 })).toEqual([
+    expect(check({ average: 12, q4: 11, maxScore: 10 })).toEqual([
+      { field: "q4", code: "VALUE_ABOVE_MAX_SCORE" },
       { field: "average", code: "VALUE_ABOVE_MAX_SCORE" },
     ]);
     expect(check({})).toEqual([{ field: "", code: "NOTHING_SUBMITTED" }]);
-    expect(check({ q1: 0.125 })).toEqual([
-      { field: "q1", code: "VALUE_OUT_OF_RANGE" },
+    expect(check({ q1: 0.125, average: -1 })).toEqual([
+      { field: "", code: "VALUE_OUT_OF_RANGE" },
     ]);
   });
 });

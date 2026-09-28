@@ -57,6 +57,15 @@ export function adminSource(
   return null;
 }
 
+/**
+ * Live accounts that are admin, through the database or `ADMIN_EMAILS`. An
+ * env-listed address that has never signed in has no account, so it is not
+ * here.
+ */
+export function liveAdmins(ctx: Ctx): UserRow[] {
+  return ctx.state.users.filter((u) => isAdmin(ctx, u));
+}
+
 export function findUser(ctx: Ctx, id: number): UserRow | undefined {
   return ctx.state.users.find((u) => u.id === id);
 }
@@ -107,7 +116,12 @@ export function suggestedAdmissionYear(email: string | null): number | null {
   return y >= 1980 && y <= 2100 ? y : null;
 }
 
-/** Legacy rule (api/_utils.js maskDisplayName): keep the first and last character. */
+/**
+ * The contract's byline rule: keep the first and last character with one `*`
+ * per character between (`김철수` → `김*수`); two characters become first + `*`;
+ * one character is unchanged. With no display name, the email local part is
+ * masked instead (the contract does not cover that case).
+ */
 export function maskName(user: UserRow | undefined): string | null {
   if (!user || user.deletedAt) return null;
   const source =
@@ -165,7 +179,6 @@ export function getOrCreateSitting(
     votingOpenedAt: null,
     votingClosesAt: null,
     votingEndedAt: null,
-    votesCountedFrom: null,
     createdAt: ctx.now(),
   };
   ctx.state.sittings.push(sitting);
@@ -233,13 +246,17 @@ export function fulfilRequests(
   return n;
 }
 
-export function countedVotes(ctx: Ctx, s: SittingRow) {
-  // A vote's time is its latest change: re-rating after the cutoff counts again.
-  return ctx.state.votes.filter(
-    (v) =>
-      v.sittingId === s.id &&
-      (s.votesCountedFrom === null || v.updatedAt >= s.votesCountedFrom),
-  );
+export function sittingVotes(ctx: Ctx, s: SittingRow) {
+  return ctx.state.votes.filter((v) => v.sittingId === s.id);
+}
+
+/**
+ * When a closed sitting's voting ended: the manual close, else the deadline
+ * that passed. Reopening clears `votingEndedAt`, so a closed sitting has at
+ * most one of the two in effect.
+ */
+export function votingClosedAt(s: SittingRow): number | null {
+  return s.votingEndedAt ?? s.votingClosesAt;
 }
 
 export function visibleStatistics(ctx: Ctx, sittingId: number) {

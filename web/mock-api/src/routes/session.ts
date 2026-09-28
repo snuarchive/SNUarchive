@@ -1,15 +1,23 @@
 import { Hono } from "hono";
 import type { Env } from "../auth";
 import {
+  checkOrigin,
   clearSessionCookies,
   clientIp,
   guard,
   me,
+  safeNext,
   startSession,
+  withAuthOk,
 } from "../auth";
 import type { Ctx } from "../domain";
 import { log, signIn } from "../domain";
-import { ApiError, confirmationRequired, FieldErrors, malformed } from "../errors";
+import {
+  confirmationRequired,
+  fieldError,
+  FieldErrors,
+  malformed,
+} from "../errors";
 import { byFavoriteOrder } from "../state";
 import { int, paginate, readJson, str } from "../input";
 import { COLLEGES, configBody, LIMITS } from "../refdata";
@@ -20,16 +28,20 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function sessionRoutes(ctx: Ctx) {
   const r = new Hono<Env>();
+  const app = ctx.options.appOrigin;
 
   r.get("/config", (c) => c.json(configBody()));
 
   // Google OAuth emulation: the "Google" page is served by the mock itself.
-  r.get("/auth/google", (c) =>
-    c.redirect(`${ctx.options.mockOrigin}/__mock/google`, 302),
-  );
+  // A valid `next` rides through it in `state`, as it would through Google;
+  // the backend keeps it in a signed state cookie instead.
+  r.get("/auth/google", (c) => {
+    const next = safeNext(c.req.query("next"), app);
+    const state = next === null ? "" : `?state=${encodeURIComponent(next)}`;
+    return c.redirect(`${ctx.options.mockOrigin}/__mock/google${state}`, 302);
+  });
 
   r.get("/auth/google/callback", (c) => {
-    const app = ctx.options.appOrigin;
     const email = (c.req.query("mock_email") ?? "").trim().toLowerCase();
     if (c.req.query("error") || !email)
       return c.redirect(`${app}/?auth=error`, 302);
@@ -39,7 +51,8 @@ export function sessionRoutes(ctx: Ctx) {
     const name = c.req.query("mock_name") ?? null;
     const user = signIn(ctx, email, name, clientIp(c));
     startSession(c, ctx, user);
-    return c.redirect(`${app}/?auth=ok`, 302);
+    const next = safeNext(c.req.query("state"), app) ?? "/";
+    return c.redirect(`${app}${withAuthOk(next)}`, 302);
   });
 
   r.post("/auth/logout", guard(ctx, "write"), (c) => {
@@ -49,6 +62,7 @@ export function sessionRoutes(ctx: Ctx) {
 
   // Always enabled in the mock; the backend registers it only in development.
   r.post("/auth/dev-login", async (c) => {
+    checkOrigin(c, ctx);
     const body = await readJson(c, ["email", "displayName"]);
     const email = str(body, "email");
     const displayName = str(body, "displayName", { nullable: true });
@@ -117,6 +131,11 @@ export function sessionRoutes(ctx: Ctx) {
       deletedAt: ctx.now(),
       sessionEpoch: user.sessionEpoch + 1,
     });
+    // Favourites go; open voting requests stay open, since they still count
+    // as demand for voting.
+    ctx.state.favorites = ctx.state.favorites.filter(
+      (f) => f.userId !== user.id,
+    );
     clearSessionCookies(c, ctx);
     return c.body(null, 204);
   });
@@ -141,28 +160,6 @@ export function sessionRoutes(ctx: Ctx) {
     );
   });
 
-  // Proposed extension, not in the contract yet: set the favourites order.
-  r.put("/me/favorites/order", guard(ctx, "write"), async (c) => {
-    const user = me(c);
-    const body = (await c.req.json().catch(() => null)) as { ids?: unknown } | null;
-    const ids = body?.ids;
-    if (!Array.isArray(ids) || !ids.every((id) => Number.isInteger(id))) {
-      throw malformed("ids must be an array of course ids");
-    }
-    const mine = ctx.state.favorites.filter((f) => f.userId === user.id);
-    const same =
-      ids.length === mine.length &&
-      new Set(ids).size === ids.length &&
-      mine.every((f) => ids.includes(f.courseId));
-    if (!same) {
-      throw new ApiError(422, "VALIDATION_FAILED", "즐겨찾기 목록과 맞지 않습니다.", {
-        fields: [{ field: "ids", code: "INVALID_FAVORITE_ORDER" }],
-      });
-    }
-    for (const f of mine) f.position = ids.indexOf(f.courseId);
-    return c.body(null, 204);
-  });
-
   r.get("/me/favorites/ids", guard(ctx, "user"), (c) => {
     const user = me(c);
     const ids = ctx.state.favorites
@@ -170,6 +167,22 @@ export function sessionRoutes(ctx: Ctx) {
       .sort(byFavoriteOrder)
       .map((f) => f.courseId);
     return c.json({ ids });
+  });
+
+  r.put("/me/favorites/order", guard(ctx, "write"), async (c) => {
+    const user = me(c);
+    const ids = (await readJson(c, ["ids"])).ids;
+    if (!Array.isArray(ids) || !ids.every((id) => Number.isSafeInteger(id)))
+      throw malformed("ids는 강의 id 정수 배열이어야 합니다.");
+    // Exactly the caller's favourite set: nothing missing, extra or repeated.
+    const mine = ctx.state.favorites.filter((f) => f.userId === user.id);
+    const same =
+      ids.length === mine.length &&
+      new Set(ids).size === ids.length &&
+      mine.every((f) => ids.includes(f.courseId));
+    if (!same) throw fieldError("ids", "INVALID_FAVORITE_ORDER");
+    for (const f of mine) f.position = ids.indexOf(f.courseId);
+    return c.body(null, 204);
   });
 
   return r;

@@ -22,17 +22,8 @@ const STATUS_LABELS: Record<Report["status"], string> = {
   rejected: "반려",
 };
 
-/**
- * The contract calls fileUrl "relative" without saying to what; accept both
- * an app-relative /api/v1/... path and one relative to the API base.
- */
-export function reportFileHref(fileUrl: string): string {
-  if (fileUrl.startsWith("/api/")) return fileUrl;
-  return `/api/v1${fileUrl.startsWith("/") ? "" : "/"}${fileUrl}`;
-}
-
 function Viewer({ report }: { report: Report }) {
-  const href = reportFileHref(report.fileUrl);
+  const href = report.fileUrl;
   if (report.file.contentType.startsWith("image/")) {
     return (
       <div className={s.viewer}>
@@ -76,7 +67,7 @@ export function ReportReviewCard({ report, kinds, semesters }: Props) {
         </div>
         <a
           className={cx(ui.button, ui.subtle)}
-          href={reportFileHref(report.fileUrl)}
+          href={report.fileUrl}
           target="_blank"
           rel="noreferrer"
         >

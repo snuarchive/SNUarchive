@@ -9,6 +9,7 @@ import {
   ApiError,
   confirmationRequired,
   conflict,
+  fieldError,
   FieldErrors,
   malformed,
 } from "../errors";
@@ -51,7 +52,6 @@ const ACTIONS = new Set<string>([
   "voting_open",
   "voting_update",
   "voting_close",
-  "vote_cutoff_set",
   "vote_cast",
   "voting_request_create",
   "voting_request_cancel",
@@ -107,9 +107,13 @@ function filterFromQuery(c: Context<Env>): LogFilter {
   if (actions?.length) f.action = checkActions(actions);
   const userId = queryInt(c, "userId");
   if (userId !== undefined) f.userId = userId;
-  if (f.from !== undefined && f.until !== undefined && f.from >= f.until)
-    throw malformed("from은 until보다 앞서야 합니다.");
+  if (windowInverted(f)) throw fieldError("until", "WINDOW_INVERTED");
   return f;
+}
+
+/** `from >= until` is a rule error (422 WINDOW_INVERTED on `until`), not a shape error. */
+function windowInverted(f: LogFilter): boolean {
+  return f.from !== undefined && f.until !== undefined && f.from >= f.until;
 }
 
 function filterFromBody(body: Body): LogFilter {
@@ -126,11 +130,11 @@ function filterFromBody(body: Body): LogFilter {
   const userId = int(body, "userId");
   if (userId != null) f.userId = userId;
   const fe = new FieldErrors();
+  // At least one filter field; `token` alone is not a filter.
   if (!Object.keys(f).length) fe.add("", "REQUIRED");
   if (body.action !== undefined && !f.action?.length)
     fe.add("action", "REQUIRED");
-  if (f.from !== undefined && f.until !== undefined && f.from >= f.until)
-    fe.add("until", "WINDOW_INVERTED");
+  if (windowInverted(f)) fe.add("until", "WINDOW_INVERTED");
   fe.throwIfAny();
   return f;
 }

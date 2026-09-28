@@ -90,19 +90,6 @@ export async function action({ request, context }: Route.ActionArgs) {
       });
       success = "투표를 종료했습니다.";
       break;
-    case "cutoff": {
-      const clear = form.get("clear") === "1";
-      result = await client.PUT("/admin/sittings/{sittingId}/vote-cutoff", {
-        params: { path },
-        body: {
-          countVotesFrom: clear
-            ? null
-            : fromSeoulInput(String(form.get("countVotesFrom") ?? "")),
-        },
-      });
-      success = clear ? "기준 시각을 지웠습니다." : "기준 시각을 정했습니다.";
-      break;
-    }
     case "create": {
       const config = await getConfig(context);
       const key = readSittingKey(form, config.assessmentKinds);
@@ -283,8 +270,6 @@ function SittingCard({
           <p>
             난이도 {difficulty.average ?? "-"} ({difficulty.voteCount}표) · 통계{" "}
             {sitting.statisticCount}건 · 요청 {sitting.openRequestCount}건
-            {voting.countedFrom &&
-              ` · ${formatDateTime(voting.countedFrom)} 이후 표만 집계`}
           </p>
         </div>
       </header>
@@ -339,32 +324,6 @@ function SittingCard({
           </button>
         </Form>
       )}
-
-      <Form method="post" className={s.inline} preventScrollReset>
-        {hidden}
-        <input type="hidden" name="intent" value="cutoff" />
-        <label>
-          이 시각 이후 표만 집계(서울 시간)
-          <input
-            name="countVotesFrom"
-            type="datetime-local"
-            defaultValue={toSeoulInput(voting.countedFrom)}
-          />
-        </label>
-        <button className={cx(ui.button, ui.subtle)} type="submit">
-          기준 저장
-        </button>
-        {voting.countedFrom && (
-          <button
-            className={cx(ui.button, ui.subtle)}
-            type="submit"
-            name="clear"
-            value="1"
-          >
-            기준 지우기
-          </button>
-        )}
-      </Form>
     </article>
   );
 }

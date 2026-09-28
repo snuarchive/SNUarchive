@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { KIND } from "../../src/refdata";
+import type { SittingRow } from "../../src/state";
 import type { H } from "../harness";
 import { refs, SEED_ACCOUNTS, UNKNOWN_ID } from "../harness";
 
@@ -106,6 +107,41 @@ export function adminVotingScenarios(h: H) {
         403,
       );
       expect((await h.client().get("/admin/sittings")).status).toBe(401);
+    });
+
+    it("adminListSittings orders each voting state as the contract says", async () => {
+      const admin = await h.admin();
+      const list = async (state: string): Promise<SittingRow[]> =>
+        (
+          await admin.get(`/admin/sittings?votingState=${state}&limit=50`)
+        ).json.items.map(
+          (s: { id: number }) =>
+            h.mock.ctx.state.sittings.find((x) => x.id === s.id)!,
+        );
+      const descending = (xs: number[]) =>
+        expect(xs).toEqual([...xs].sort((a, b) => b - a));
+
+      // closed: most recently closed or ended first.
+      const closed = await list("closed");
+      expect(closed.length).toBeGreaterThan(2);
+      descending(closed.map((s: SittingRow) => s.votingEndedAt ?? s.votingClosesAt!));
+      // Closing one now puts it at the top.
+      const r = refs(h.mock);
+      await admin.post(`/admin/sittings/${r.openSitting.id}/voting/close`);
+      expect((await list("closed"))[0].id).toBe(r.openSitting.id);
+
+      // never and any: most recently created first.
+      for (const state of ["never", "any"]) {
+        const items = await list(state);
+        expect(items.length).toBeGreaterThan(2);
+        descending(items.map((s: SittingRow) => s.createdAt));
+      }
+      const created = await admin.post(
+        `/admin/courses/${r.course.id}/sittings`,
+        { json: { kindId: KIND.other, year: 2026, semester: 3 } },
+      );
+      expect((await list("never"))[0].id).toBe(created.json.id);
+      expect((await list("any"))[0].id).toBe(created.json.id);
     });
 
     it("adminOpenVoting opens and fulfils the requests", async () => {
@@ -241,41 +277,26 @@ export function adminVotingScenarios(h: H) {
       expect((await h.client().post(url)).status).toBe(401);
     });
 
-    it("adminSetVoteCutoff excludes earlier votes, reversibly", async () => {
+    it("every vote counts: there is no vote cutoff", async () => {
       const r = refs(h.mock);
       const admin = await h.admin();
-      const url = `/admin/sittings/${r.openSitting.id}/vote-cutoff`;
-      const cut = await admin.put(url, {
-        json: { countVotesFrom: new Date().toISOString() },
-      });
-      expect(cut.status).toBe(200);
-      expect(cut.json.difficulty).toMatchObject({
-        voteCount: 0,
-        average: null,
-      });
-      expect(cut.json.excludedVoteCount).toBeGreaterThan(0);
-      expect(cut.json.voting.countedFrom).toEqual(expect.any(String));
-      const restored = await admin.put(url, { json: { countVotesFrom: null } });
-      expect(restored.json).toMatchObject({
-        excludedVoteCount: 0,
-        voting: { countedFrom: null },
-      });
-      expect(restored.json.difficulty.voteCount).toBe(
-        cut.json.excludedVoteCount,
+      // The route is gone (not in the contract, so unchecked).
+      const gone = await admin.put(
+        `/api/v1/admin/sittings/${r.openSitting.id}/vote-cutoff`,
+        { json: { countVotesFrom: null }, unchecked: true },
       );
-      expect(fields(await admin.put(url, { json: {} }))).toEqual([
-        { field: "countVotesFrom", code: "REQUIRED" },
-      ]);
-      expect(
-        (
-          await admin.put(`/admin/sittings/${UNKNOWN_ID}/vote-cutoff`, {
-            json: { countVotesFrom: null },
-          })
-        ).status,
-      ).toBe(404);
-      expect(
-        (await h.client().put(url, { json: { countVotesFrom: null } })).status,
-      ).toBe(401);
+      expect(gone.status).toBe(404);
+      for (const s of h.mock.ctx.state.sittings) {
+        const votes = h.mock.ctx.state.votes.filter((v) => v.sittingId === s.id);
+        if (!votes.length) continue;
+        const item = (
+          await admin.get(
+            `/admin/sittings?votingState=any&courseId=${s.courseId}&limit=50`,
+          )
+        ).json.items.find((x: { id: number }) => x.id === s.id);
+        expect(item.difficulty.voteCount).toBe(votes.length);
+        expect(item.voting).not.toHaveProperty("countedFrom");
+      }
     });
 
     it("adminListVotingRequests groups open requests, most requested first", async () => {
@@ -303,6 +324,13 @@ export function adminVotingScenarios(h: H) {
       const r = refs(h.mock);
       const admin = await h.admin();
       const s = r.requestedSitting;
+      expect(
+        fields(
+          await admin.post(`/admin/voting-requests/${s.id}/reject`, {
+            json: { note: "가".repeat(501) },
+          }),
+        ),
+      ).toEqual([{ field: "note", code: "TOO_LONG" }]);
       const res = await admin.post(`/admin/voting-requests/${s.id}/reject`, {
         json: { note: "시험 일정 미정" },
       });

@@ -1,7 +1,7 @@
 import { data } from "react-router";
 
 import type { ApiFailure } from "~/api/client.server";
-import { errorMessage, fieldErrors } from "./errors";
+import { fieldErrors, formMessage } from "./errors";
 import type { ActionFailure } from "./forms";
 
 /** A refused submission, shown next to its form with the values kept. */
@@ -23,7 +23,7 @@ export function refuseFromApi(
 ) {
   return refuse(
     intent,
-    errorMessage(failure.error),
+    formMessage(failure.error, failure.fields),
     values,
     fieldErrors(failure.fields),
     failure.status,
