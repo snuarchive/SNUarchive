@@ -167,7 +167,10 @@ db/migrations/         goose SQL
   - MIME CHECK: pdf/png/jpeg/webp.
   - 승인은 `status = 'pending'`인 행에서만 가능하다(`UPDATE … WHERE status = 'pending'`, 0행이면 409). 통계 1개 생성과 같은 트랜잭션에서 처리한다.
 - `upload_intents(file_key PK, created_at)`: 오브젝트 쓰기 전에 삽입하고, `pending_reports` 커밋과 같은 트랜잭션에서 삭제한다.
-- `comments(id, course_id, user_id, body ≤50자, created_at)`, `favorites(user_id, course_id, created_at)`
+- `comments(id, course_id, user_id, body ≤50자, created_at)`
+- `favorites(user_id, course_id, position, created_at)`: `position`은 사용자가 정한 순서(작을수록 앞).
+  - `UNIQUE (user_id, position) DEFERRABLE INITIALLY IMMEDIATE`: 순서 변경 트랜잭션은 `SET CONSTRAINTS favorites_position_u DEFERRED` 후 자리를 맞바꾼다.
+  - 새 즐겨찾기는 그 사용자의 `min(position) − 1`(첫 항목은 0)로 넣어 맨 앞에 온다(앱 규칙).
 
 ### 4.5 로그
 - `activity_action` enum: 제안서 값 + `voting_update`, `voting_close`, `voting_request_create`, `voting_request_cancel`, `voting_request_reject`, `logs_export`, `logs_delete`, `logs_retention_delete`, `logs_archive`, `account_delete`, `profile_update`, `report_file_view`.

@@ -447,6 +447,7 @@ type ExamSitting struct {
 type Favorite struct {
 	UserID    int64
 	CourseID  int64
+	Position  int32
 	CreatedAt time.Time
 }
 

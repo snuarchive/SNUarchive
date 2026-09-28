@@ -417,13 +417,17 @@ CREATE INDEX comments_user_idx   ON comments (user_id);
 CREATE TABLE favorites (
   user_id    bigint      NOT NULL,
   course_id  bigint      NOT NULL,
+  -- the user's order, smallest first; a new favourite takes min(position) - 1
+  position   integer     NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT favorites_pk        PRIMARY KEY (user_id, course_id),
-  CONSTRAINT favorites_user_fk   FOREIGN KEY (user_id)   REFERENCES users (id),
-  CONSTRAINT favorites_course_fk FOREIGN KEY (course_id) REFERENCES courses (id)
+  CONSTRAINT favorites_pk         PRIMARY KEY (user_id, course_id),
+  CONSTRAINT favorites_user_fk    FOREIGN KEY (user_id)   REFERENCES users (id),
+  CONSTRAINT favorites_course_fk  FOREIGN KEY (course_id) REFERENCES courses (id),
+  -- deferrable so a reorder can swap positions inside one transaction
+  CONSTRAINT favorites_position_u UNIQUE (user_id, position) DEFERRABLE INITIALLY IMMEDIATE
 );
-CREATE INDEX favorites_user_recent_idx ON favorites (user_id, created_at DESC);
-CREATE INDEX favorites_course_idx      ON favorites (course_id);
+CREATE INDEX favorites_user_order_idx ON favorites (user_id, position);
+CREATE INDEX favorites_course_idx     ON favorites (course_id);
 
 -- ----------------------------------------------------------- operations
 

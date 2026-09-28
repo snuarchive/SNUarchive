@@ -104,6 +104,7 @@ var constraintRules = map[string]rule{
 	"voting_requests_open_u":       code(apperr.VotingRequestExists),
 	"catalog_imports_one_running":  code(apperr.JobAlreadyRunning),
 	"log_archive_runs_one_running": code(apperr.JobAlreadyRunning),
+	"favorites_position_u":         internalInvariant,
 
 	// FOREIGN KEY
 	"courses_instructor_fk":       internalInvariant,

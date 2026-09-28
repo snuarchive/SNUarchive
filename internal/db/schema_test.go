@@ -236,3 +236,43 @@ func TestVotingViews(t *testing.T) {
 		t.Fatalf("open-ended voting state = %s", s)
 	}
 }
+
+func TestFavoritePositions(t *testing.T) {
+	pool := pgtest.New(t)
+	f := seed(t, pool)
+	inst := scalar[int32](t, pool, `SELECT instructor_id FROM courses WHERE id = $1`, f.courseID)
+	other := scalar[int64](t, pool, `
+		INSERT INTO courses (title, instructor_id, identity_key, search_text)
+		VALUES ('알고리즘', $1, 'k2', '알고리즘') RETURNING id`, inst)
+	mustExec(t, pool, `INSERT INTO favorites (user_id, course_id, position) VALUES ($1, $2, 0)`, f.userID, f.courseID)
+
+	_, err := pool.Exec(context.Background(), `INSERT INTO favorites (user_id, course_id, position) VALUES ($1, $2, 0)`, f.userID, other)
+	if got := constraintOf(t, err); got != "favorites_position_u" {
+		t.Fatalf("shared position: constraint = %q", got)
+	}
+	mustExec(t, pool, `INSERT INTO favorites (user_id, course_id, position) VALUES ($1, $2, -1)`, f.userID, other)
+
+	// A reorder swaps positions inside one transaction.
+	ctx := context.Background()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	const move = `UPDATE favorites SET position = $3 WHERE user_id = $1 AND course_id = $2`
+	if _, err := tx.Exec(ctx, `SET CONSTRAINTS favorites_position_u DEFERRED`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.Exec(ctx, move, f.userID, f.courseID, -1); err != nil {
+		t.Fatalf("first move: %v", err)
+	}
+	if _, err := tx.Exec(ctx, move, f.userID, other, 0); err != nil {
+		t.Fatalf("second move: %v", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("swap must commit: %v", err)
+	}
+	if got := scalar[int32](t, pool, `SELECT position FROM favorites WHERE user_id = $1 AND course_id = $2`, f.userID, f.courseID); got != -1 {
+		t.Fatalf("position after swap = %d", got)
+	}
+}
