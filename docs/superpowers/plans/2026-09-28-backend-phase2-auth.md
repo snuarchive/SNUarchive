@@ -15,7 +15,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-09-27-go-backend-design.md` (§2 결정 표, §4.2 사용자, §5.1 인증, §6 설정, §9 2단계). API 계약: `docs/api/openapi.yaml` (`/auth/*`, `/me`, `/me/logout-all`). 남은 항목: `docs/backend/open-items.md` (O6, O24, O27). 사용자 결정(2026-09-28)은 Task 1이 설계서 §2에 옮긴다.
 
-**이 계획의 코드는 시제품으로 검증했다.** 2026-09-28에 `feature/go-backend`(2abad62) 위에서 이 계획의 모든 코드를 작성해 `make check`(sqlc diff, vet, staticcheck, 전체 테스트)와 Redocly lint를 통과시킨 뒤, 시제품은 지우고 계획만 커밋했다. 그 사이 PR #1이 바뀌었다면 패치의 문맥이 어긋날 수 있다. 그때는 의미를 유지한 채 맞춰 적용하고, 의미가 달라지는 충돌은 아래 "도중 결정 규칙"을 따른다.
+**이 계획의 코드는 시제품으로 검증했다.** 2026-09-28에 `feature/go-backend`(2abad62) 위에서 이 계획의 모든 코드를 작성해 `make check`(sqlc diff, vet, staticcheck, 전체 테스트)와 Redocly lint를 통과시킨 뒤, 시제품은 지우고 계획만 커밋했다. 같은 날 PR #1에 d7a77ec(리뷰 반영: 프록시 신뢰, JSON 디코딩, 스키마)가 더해진 뒤 패치를 d7a77ec에 다시 대 보았고, 달라진 `open-items.md` 패치(Task 9)만 새로 만들었다. 그 사이 PR #1이 바뀌었다면 패치의 문맥이 어긋날 수 있다. 그때는 의미를 유지한 채 맞춰 적용하고, 의미가 달라지는 충돌은 아래 "도중 결정 규칙"을 따른다.
 
 ## Global Constraints
 
@@ -3390,7 +3390,7 @@ git commit -m "Wire accounts into serve; add snuarchive dev seed (accounts, O27)
 
 ```diff
 diff --git a/docs/backend/open-items.md b/docs/backend/open-items.md
-index 3a04c1f..2245a97 100644
+index a57f608..5dbea65 100644
 --- a/docs/backend/open-items.md
 +++ b/docs/backend/open-items.md
 @@ -12,7 +12,7 @@
@@ -3412,11 +3412,11 @@ index 3a04c1f..2245a97 100644
  | O26 | 프론트 2차 요청 1·2·5: compose에 `web` 서비스(`web/Dockerfile`, 포트 3000, `APP_ENV`·`API_ORIGIN=http://app:8080`·`APP_ORIGIN`·`WEB_SESSION_SECRET`, `WEB_IP` 고정, readiness는 `GET /`), `caddy`의 `depends_on`에 web(healthy), Caddyfile 나머지 경로를 `web:3000`으로(요청 ID는 Caddy가 새로 부여, `/api/*`는 계속 Go), E2E용 개발 모드 override `deploy/compose.e2e.yaml`(app `APP_ENV=development`·`DEV_LOGIN_ENABLED=true`, 운영 사용 금지 경고). 프론트 3차 메모(2026-09-28): 개발 로그인은 Go가 단일 기준이라 web에는 `DEV_LOGIN`이 없다(`/config.devLoginEnabled`만 봄, 5분 캐시). web의 `APP_ENV=development`는 개발 로그인과 무관하고 비밀값 기본값과 개발용 `/api/v1` 통과 경로만 연다. web IP는 신뢰 프록시라 그 통과 경로가 브라우저 헤더를 옮기므로 override에서도 web은 `production`으로 둔다, `deploy/.env.example`에 `WEB_SESSION_SECRET` 추가. 2026-09-28 사용자 결정: 두 PR(#1, 프론트) 병합 후 main에서 새 브랜치로, override도 만든다 | `feature/go-backend`에 `web/`이 없어 build 컨텍스트가 없음 | 개발자: 병합 후 통합 브랜치 | 운영 배포(web), `E2E_TARGET=compose` | 열림 |
 -| O27 | 프론트 2차 요청 4: 개발 시드 명령 `snuarchive dev seed`. `APP_ENV=development`가 아니면 거부, 확인 플래그 없음, 매번 초기화 후 적재(마이그레이션 참조 데이터 유지), 약 1초, 시각은 실행 시점 기준 상대값. 카탈로그는 시드 안의 작은 고정 목록(`미적분학 1`: 현재 학기 투표 열림·한줄평·통계, `선형대수학`: 투표 안 연 회차가 있어 요청 가능, 관리자 회차 만들기 기말 2025와 안 겹침). 계정 `admin@`(ADMIN_EMAILS)·`student@`(프로필)·`newbie@`(단과대·입학년도 없음)·`moderator@`(DB 관리자) `snu.ac.kr`. 관리자 큐(대기 간편 제보 + 이미지 파일, 숨길 통계량, 열린 투표 요청), 로그(`login` 포함 여러 건, Drive 보관 이력, 잡 이력), `student` 즐겨찾기. 기준 자료는 프론트 `web/mock-api/src/seed.ts`. 프론트 3차 메모(2026-09-28)의 E2E 기대값: 이름으로 찾는 강의는 둘뿐이고 전체 카탈로그에 기대는 검색은 없다. `미적분학 1`은 `미적분`·`미적분학`·`미적분학 1`로 검색되어 결과 이름이 `미적분학 1`로 시작하고, 이 강의에 대기 중인 간편 제보가 있다(관리자가 강의 페이지의 과목 제보 큐를 봄). `선형대수학`은 `선형대수학`으로 검색되고, 관리자가 통계량을 이 강의로 옮긴다. 이 강의의 투표 안 연 회차는 비어 있으므로 `admin_created = true`로 넣어야 강의 페이지에 보인다(O31). `student` 즐겨찾기는 3개 이상(끌어놓기 1→3번째), 홈 "즐겨찾기" 첫 항목에 배지. 홈 "투표 진행중" 1개 이상(`미적분학 1`이면 충분). 병합 전 워크트리에서 프론트는 `E2E_RESET_CMD='cd ../../go-backend && go run ./cmd/snuarchive dev seed'`로 부른다(`web/`에서 실행). 2026-09-28 사용자 결정: 단계별 누적, 2단계(명령+계정)부터 각 단계가 자기 테이블 시드를 추가 | 해당 API가 아직 없음 | 개발자, 2단계부터 | `E2E_TARGET=go`, `E2E_TARGET=compose` | 열림 |
 +| O27 | 프론트 2차 요청 4: 개발 시드 명령 `snuarchive dev seed`. `APP_ENV=development`가 아니면 거부, 확인 플래그 없음, 매번 초기화 후 적재(마이그레이션 참조 데이터 유지), 약 1초, 시각은 실행 시점 기준 상대값. 카탈로그는 시드 안의 작은 고정 목록(`미적분학 1`: 현재 학기 투표 열림·한줄평·통계, `선형대수학`: 투표 안 연 회차가 있어 요청 가능, 관리자 회차 만들기 기말 2025와 안 겹침). 계정 `admin@`(ADMIN_EMAILS)·`student@`(프로필)·`newbie@`(단과대·입학년도 없음)·`moderator@`(DB 관리자) `snu.ac.kr`. 관리자 큐(대기 간편 제보 + 이미지 파일, 숨길 통계량, 열린 투표 요청), 로그(`login` 포함 여러 건, Drive 보관 이력, 잡 이력), `student` 즐겨찾기. 기준 자료는 프론트 `web/mock-api/src/seed.ts`. 프론트 3차 메모(2026-09-28)의 E2E 기대값: 이름으로 찾는 강의는 둘뿐이고 전체 카탈로그에 기대는 검색은 없다. `미적분학 1`은 `미적분`·`미적분학`·`미적분학 1`로 검색되어 결과 이름이 `미적분학 1`로 시작하고, 이 강의에 대기 중인 간편 제보가 있다(관리자가 강의 페이지의 과목 제보 큐를 봄). `선형대수학`은 `선형대수학`으로 검색되고, 관리자가 통계량을 이 강의로 옮긴다. 이 강의의 투표 안 연 회차는 비어 있으므로 `admin_created = true`로 넣어야 강의 페이지에 보인다(O31). `student` 즐겨찾기는 3개 이상(끌어놓기 1→3번째), 홈 "즐겨찾기" 첫 항목에 배지. 홈 "투표 진행중" 1개 이상(`미적분학 1`이면 충분). 병합 전 워크트리에서 프론트는 `E2E_RESET_CMD='cd ../../go-backend && go run ./cmd/snuarchive dev seed'`로 부른다(`web/`에서 실행). 2026-09-28 사용자 결정: 단계별 누적, 2단계(명령+계정)부터 각 단계가 자기 테이블 시드를 추가. 2단계에서 `internal/devseed`와 `snuarchive dev seed`(계정 4개 + `login` 로그 24건)를 만들었다. 이후 단계는 `devseed.Seed`에 자기 테이블을 더한다 | 해당 API가 아직 없음 | 개발자, 2단계부터 | `E2E_TARGET=go`, `E2E_TARGET=compose` | 열림 |
- | O28 | `deploy/.env.example`에 `COMPOSE_SUBNET`, `CADDY_IP`, `WEB_IP`, `DB_IP`, `APP_IP`, `MIGRATE_IP` 반영. 지금은 `docs/backend/running-locally.md`에만 있음 | 읽기 가드가 `.env.example` 접근을 막음. 예외 설치(`~/.claude/read-guard-setup/allow-env-example.sh`)는 사용자가 실행 | 사용자: 설치 → 개발자: 반영 | 새 사용자의 compose 설정 | 열림 |
+ | O28 | `deploy/.env.example`에 `COMPOSE_SUBNET`, `COMPOSE_IP_RANGE`, `CADDY_IP`, `WEB_IP`, `DB_IP`, `APP_IP`, `MIGRATE_IP` 반영. 지금은 `docs/backend/running-locally.md`에만 있음 | 읽기 가드가 `.env.example` 접근을 막음. 예외 설치(`~/.claude/read-guard-setup/allow-env-example.sh`)는 사용자가 실행 | 사용자: 설치 → 개발자: 반영 | 새 사용자의 compose 설정 | 열림 |
  | O29 | 관리자 회수의 동시성: 두 관리자가 서로를 동시에 회수하면 두 요청 모두 "다른 관리자가 남는다"고 판단해 커밋하고, 관리자가 0명이 된다(`LAST_ADMIN_PROTECTED`가 막지 못함) | 6단계 작업 | 개발자, 6단계: 회수 트랜잭션을 `pg_advisory_xact_lock(<관리자 잠금 키>)`로 직렬화한 뒤 남은 관리자를 센다(env 관리자 행도 세므로 DB 관리자 행만 `FOR UPDATE`로 잠그는 방식은 부족할 수 있음). 동시 회수 통합 테스트 추가 | 6단계 관리자 회수 | 열림 |
  | O30 | 투표 마감 변경(`PATCH /admin/sittings/{id}/voting`)의 과거 시각: `exam_sittings_voting_ck`는 마감이 개시보다 뒤인지만 본다. PATCH에서는 개시 시각이 과거라 과거의 `closesAt`도 통과해, 422 `CLOSES_AT_IN_PAST` 대신 투표가 조용히 닫힌다(개설·재개설은 개시 = now()라 DB가 막음) | 투표 관리 구현 단계 작업 | 개발자, 투표 관리 구현 단계(4 또는 6단계): 핸들러가 `closesAt > now()`를 검사해 422 `CLOSES_AT_IN_PAST`(field `closesAt`)로 답한다. 테스트 추가 | 투표 마감 변경 | 열림 |
 diff --git a/docs/backend/running-locally.md b/docs/backend/running-locally.md
-index 7a8b13e..cf03a9d 100644
+index 75ec70c..bbf1755 100644
 --- a/docs/backend/running-locally.md
 +++ b/docs/backend/running-locally.md
 @@ -14,6 +14,7 @@
