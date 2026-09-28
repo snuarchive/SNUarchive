@@ -1506,9 +1506,12 @@ paths:
         Deletes the entries that match the filter and whose id is at or below
         the bound the token recorded (see the preview). The filter must be
         identical to the previewed one and the count of those entries
-        unchanged — it can only drop, e.g. when retention or another delete
-        removed some since the preview; otherwise
-        `409 DELETE_PREVIEW_MISMATCH` and nothing is deleted. Afterwards one
+        unchanged; otherwise `409 DELETE_PREVIEW_MISMATCH` and nothing is
+        deleted. The count usually changes by dropping (retention or another
+        delete removed some since the preview), but it can also rise: ids are
+        handed out before commit, so an entry that took an id at or below the
+        bound can commit after the preview. Either way, preview again.
+        Afterwards one
         `logs_delete` entry records the filter, the id bound and the count.
 
         At least one filter field (`from`, `until`, `action`, `userId`) is
@@ -1541,7 +1544,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/AdminRequired' }
         '409':
-          description: '`DELETE_PREVIEW_MISMATCH` — token expired, filter changed, or entries within the previewed bound were removed since'
+          description: '`DELETE_PREVIEW_MISMATCH` — token expired, filter changed, or the count of entries within the previewed bound changed since'
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }

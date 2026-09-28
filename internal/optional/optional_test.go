@@ -69,6 +69,23 @@ func TestUnknownFieldsStillRejected(t *testing.T) {
 	}
 }
 
+// The outer decoder's DisallowUnknownFields does not reach a value decoded
+// inside UnmarshalJSON, so Field must reject unknown members itself.
+func TestUnknownFieldsInsideAFieldRejected(t *testing.T) {
+	type sitting struct {
+		KindID string `json:"kindId"`
+		Year   int    `json:"year"`
+	}
+	var body struct {
+		Sitting optional.Field[sitting] `json:"sitting"`
+	}
+	dec := json.NewDecoder(strings.NewReader(`{"sitting": {"kindId": "final", "yaer": 2025}}`))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&body); err == nil {
+		t.Fatalf("unknown member inside a Field must fail, got %+v", body.Sitting)
+	}
+}
+
 func TestPtr(t *testing.T) {
 	var absent optional.Field[int]
 	if absent.Ptr() != nil || optional.Null[int]().Ptr() != nil {

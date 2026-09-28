@@ -24,14 +24,18 @@ func Of[T any](v T) Field[T] { return Field[T]{Set: true, Value: v} }
 func Null[T any]() Field[T] { return Field[T]{Set: true, Null: true} }
 
 // UnmarshalJSON runs only when the key is present, null included, which is
-// what lets Set record presence.
+// what lets Set record presence. The value gets a decoder of its own, which
+// does not inherit the caller's DisallowUnknownFields, so it is set here too:
+// request bodies reject unknown members at every depth.
 func (f *Field[T]) UnmarshalJSON(b []byte) error {
 	var v T
 	if bytes.Equal(b, []byte("null")) {
 		*f = Field[T]{Set: true, Null: true}
 		return nil
 	}
-	if err := json.Unmarshal(b, &v); err != nil {
+	dec := json.NewDecoder(bytes.NewReader(b))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&v); err != nil {
 		return err
 	}
 	*f = Field[T]{Set: true, Value: v}

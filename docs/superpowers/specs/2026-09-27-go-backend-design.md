@@ -265,7 +265,7 @@ db/migrations/         goose SQL
   - `GET /admin/logs/export?format=json|jsonl|csv|xlsx|parquet&…`
   - `POST /admin/logs/delete-preview`
   - `POST /admin/logs/delete` (같은 필터, 미리보기 토큰 필요)
-    - 토큰은 필터, 건수, 미리보기 시점의 최대 로그 id에 묶인다. 삭제는 필터에 맞고 id가 그 이하인 행만 지운다. 미리보기 뒤에 쌓인 로그는 지우지도 세지도 않으므로 `until` 없는 필터도 삭제할 수 있다. 그 범위의 건수가 달라졌으면(보존 삭제·다른 삭제로 줄어든 경우) 409 `DELETE_PREVIEW_MISMATCH`.
+    - 토큰은 필터, 건수, 미리보기 시점의 최대 로그 id에 묶인다. 삭제는 필터에 맞고 id가 그 이하인 행만 지운다. 미리보기 뒤에 쌓인 로그는 지우지도 세지도 않으므로 `until` 없는 필터도 삭제할 수 있다. 그 범위의 건수가 달라졌으면 409 `DELETE_PREVIEW_MISMATCH`이고 다시 미리보기를 해야 한다. 대개는 줄어든 경우(보존 삭제·다른 삭제)지만 늘 수도 있다. id는 커밋 전에 부여되므로, 기준 이하의 id를 받은 로그가 미리보기 뒤에 커밋될 수 있기 때문이다. 구현은 두 방향을 모두 불일치로 다룬다.
   - `DELETE /admin/logs` (전체, `X-Confirm-Delete`)
 - **업로드 관리**
   - `GET /admin/reports?status&courseId`
@@ -379,7 +379,7 @@ db/migrations/         goose SQL
 - DB 제약 위반(SQLSTATE 23514·23505·23503)은 제약 이름으로 `FieldError`/코드에 매핑한다. 매핑표 하나를 두고 테스트로 모든 CHECK 이름을 덮는다.
 - 필수 필드 누락은 `422 VALIDATION_FAILED`(`REQUIRED`, 해당 필드)다. 디코딩은 누락과 null을 함께 잡아(포인터 필드 등) 검증 단계에서 보고한다. `400 MALFORMED_REQUEST`는 JSON 구문 오류, 모르는 필드, JSON 타입 불일치만.
 - 텍스트 길이 CHECK는 "비었음"과 "너무 김"을 다른 제약으로 나눈다(`*_blank_ck`, `*_ck`). 한 제약에 최소·최대를 함께 두면 빈 값도 `TOO_LONG`으로 매핑되기 때문이다. 선택 텍스트(투표 요청 메모, 숨김 사유)는 비었거나 공백뿐이면 NULL로, 닉네임은 `(익명)`으로 저장하므로 그쪽 `*_blank_ck`는 내부 불변식이다.
-- PATCH류 본문에서 빠진 필드와 `null`은 뜻이 다르다(빠짐 = 유지, `null` = 지움). `encoding/json`은 둘 다 nil 포인터로 풀므로 이런 필드는 `internal/optional.Field[T]`로 받는다. 필수 필드는 누락과 null이 둘 다 `REQUIRED`라 위처럼 포인터로 충분하다(`PATCH /me`, `PATCH /admin/statistics/{id}`, 승인의 회차 덮어쓰기).
+- PATCH류 본문에서 빠진 필드와 `null`은 뜻이 다르다(빠짐 = 유지, `null` = 지움). `encoding/json`은 둘 다 nil 포인터로 풀므로 이런 필드는 `internal/optional.Field[T]`로 받는다(`PATCH /me`, `PATCH /admin/statistics/{id}`, 승인의 회차 덮어쓰기). 필수 필드는 누락과 null이 둘 다 `REQUIRED`라 위처럼 포인터로 충분하다.
 - 5xx는 요청 ID와 함께 로그를 남기고, 본문에는 일반 메시지만 넣는다.
 - 활동 로그:
   - **쓰기 경로**(제보, 투표, 관리자 작업, 로그 삭제)는 도메인 변경과 같은 트랜잭션에 기록한다. 기록이 실패하면 요청 전체가 실패한다. 감사 기록 없는 변경을 막기 위해서다.
