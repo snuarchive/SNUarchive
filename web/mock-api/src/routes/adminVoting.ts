@@ -27,6 +27,7 @@ import {
   readJson,
   readSittingKey,
   str,
+  SITTING_KEY_FIELDS,
 } from "../input";
 import { LIMITS } from "../refdata";
 import type { SittingRow } from "../state";
@@ -73,7 +74,7 @@ export function adminVotingRoutes(ctx: Ctx) {
     async (c) => {
       const admin = me(c);
       const course = requireCourse(ctx, pathId(c, "courseId"));
-      const body = await readJson(c);
+      const body = await readJson(c, [...SITTING_KEY_FIELDS, "openVoting"]);
       const fe = new FieldErrors();
       const key = checkSittingKey(readSittingKey(body), fe);
       let closesAt: number | null = null;

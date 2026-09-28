@@ -19,6 +19,8 @@ import {
   readJson,
   readSittingKey,
   str,
+  SITTING_KEY_FIELDS,
+  FIGURE_FIELDS,
 } from "../input";
 import { LIMITS } from "../refdata";
 import type { Figures, StatisticRow } from "../state";
@@ -86,7 +88,12 @@ export function adminModerationRoutes(ctx: Ctx) {
       const admin = me(c);
       // Precedence: 404, then 409, then 422.
       const report = requireReport(pathId(c, "reportId"));
-      const body = await readJson(c);
+      const body = await readJson(c, [
+        ...SITTING_KEY_FIELDS,
+        ...FIGURE_FIELDS,
+        "nickname",
+        "reviewNote",
+      ]);
       if (report.status !== "pending")
         throw conflict("REPORT_ALREADY_REVIEWED");
       const fe = new FieldErrors();
@@ -208,7 +215,7 @@ export function adminModerationRoutes(ctx: Ctx) {
     async (c) => {
       const admin = me(c);
       const stat = requireStatistic(pathId(c, "statisticId"));
-      const body = await readJson(c);
+      const body = await readJson(c, [...FIGURE_FIELDS, "nickname"]);
       const patch = readFigures(body);
       const rawNick = str(body, "nickname", { nullable: true });
       const fe = new FieldErrors();
@@ -238,7 +245,7 @@ export function adminModerationRoutes(ctx: Ctx) {
     async (c) => {
       const admin = me(c);
       const stat = requireStatistic(pathId(c, "statisticId"));
-      const body = await readJson(c);
+      const body = await readJson(c, ["courseId", ...SITTING_KEY_FIELDS]);
       const courseId = int(body, "courseId");
       const fe = new FieldErrors();
       if (courseId === undefined) fe.add("courseId", "REQUIRED");

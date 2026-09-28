@@ -322,14 +322,19 @@ export function contributeScenarios(h: H) {
       const bigSvg = new Uint8Array(3 * 1024 * 1024 + 1).fill(0x20);
       bigSvg.set(new TextEncoder().encode("<svg"));
       expect(
-        (await c.post(url, { form: uploadForm(new Blob([bigSvg]), "x.svg", badFields) }))
-          .status,
+        (
+          await c.post(url, {
+            form: uploadForm(new Blob([bigSvg]), "x.svg", badFields),
+          })
+        ).status,
       ).toBe(413);
       expect(
-        (await c.post(url, { form: uploadForm(svg, "x.svg", badFields) })).status,
+        (await c.post(url, { form: uploadForm(svg, "x.svg", badFields) }))
+          .status,
       ).toBe(415);
       expect(
-        (await c.post(url, { form: uploadForm(png, "x.png", badFields) })).status,
+        (await c.post(url, { form: uploadForm(png, "x.png", badFields) }))
+          .status,
       ).toBe(422);
 
       // Multipart has no null: an empty `number` part means null.
@@ -399,15 +404,13 @@ export function contributeScenarios(h: H) {
       ).toBe(403);
       expect(
         (
-          await h
-            .client()
-            .post(url, {
-              form: uploadForm(pdf, "a.pdf", {
-                kindId: "1",
-                year: "2026",
-                semester: "3",
-              }),
-            })
+          await h.client().post(url, {
+            form: uploadForm(pdf, "a.pdf", {
+              kindId: "1",
+              year: "2026",
+              semester: "3",
+            }),
+          })
         ).status,
       ).toBe(401);
     });

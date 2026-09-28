@@ -213,7 +213,9 @@ export function adminModerationScenarios(h: H) {
       }))
         form.append(k, v);
       const upload = (
-        await (await h.student()).post(`/courses/${r.course.id}/reports`, {
+        await (
+          await h.student()
+        ).post(`/courses/${r.course.id}/reports`, {
           form,
         })
       ).json;
@@ -221,7 +223,10 @@ export function adminModerationScenarios(h: H) {
         json: { kindId: KIND.midterm, number: null, average: 1 },
       });
       expect(cleared.status).toBe(201);
-      expect(cleared.json.sitting).toMatchObject({ label: "중간", number: null });
+      expect(cleared.json.sitting).toMatchObject({
+        label: "중간",
+        number: null,
+      });
 
       const pending = r.pendingReport;
       expect(
@@ -255,11 +260,9 @@ export function adminModerationScenarios(h: H) {
       ).toBe(403);
       expect(
         (
-          await h
-            .client()
-            .post(`/admin/reports/${pending.id}/approve`, {
-              json: { average: 1 },
-            })
+          await h.client().post(`/admin/reports/${pending.id}/approve`, {
+            json: { average: 1 },
+          })
         ).status,
       ).toBe(401);
     });
@@ -480,11 +483,9 @@ export function adminModerationScenarios(h: H) {
       ).toBe(403);
       expect(
         (
-          await h
-            .client()
-            .put(`/admin/statistics/${st.id}/hidden`, {
-              json: { hidden: true },
-            })
+          await h.client().put(`/admin/statistics/${st.id}/hidden`, {
+            json: { hidden: true },
+          })
         ).status,
       ).toBe(401);
     });

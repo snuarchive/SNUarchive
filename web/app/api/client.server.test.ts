@@ -38,13 +38,19 @@ describe("ApiSession", () => {
   it("replaces a missing or malformed request id", async () => {
     const cases: Record<string, string>[] = [
       {},
-      { "X-Request-ID": "not-a-uuid" },
+      { "X-Request-ID": "has spaces" },
+      { "X-Request-ID": "x".repeat(65) },
     ];
     for (const headers of cases) {
       const id = (await sent(headers)).headers.get("X-Request-ID");
       expect(id).toMatch(/^[0-9a-f-]{36}$/);
-      expect(id).not.toBe("not-a-uuid");
     }
+  });
+
+  it("keeps any id the Go server would accept, not only UUIDs", async () => {
+    const id = "0123456789abcdef0123456789abcdef";
+    const request = await sent({ "X-Request-ID": id });
+    expect(request.headers.get("X-Request-ID")).toBe(id);
   });
 
   it("forwards only the API's cookies, with CSRF on unsafe calls", async () => {

@@ -1,12 +1,12 @@
 // The contract declares 400 MALFORMED_REQUEST on every JSON write. One pass
-// sends each an unparseable body, with valid ids so no 404 comes first.
+// sends each malformed bodies, with valid ids so no 404 comes first.
 import { describe, expect, it } from "vitest";
 import type { H } from "../harness";
 import { refs } from "../harness";
 
 export function malformedScenarios(h: H) {
   describe("malformed bodies", () => {
-    it("every JSON write answers 400 to a body that is not JSON", async () => {
+    it("every JSON write answers 400 to a malformed body", async () => {
       const r = refs(h.mock);
       const admin = await h.admin();
       const writes: [string, string][] = [
@@ -31,7 +31,9 @@ export function malformedScenarios(h: H) {
         ["POST", "/admin/admins"],
       ];
       for (const [method, path] of writes) {
-        for (const json of ["{", "[1]"]) {
+        // Unparseable, not an object, and an unknown field (the backend
+        // reads bodies with DisallowUnknownFields).
+        for (const json of ["{", "[1]", `{"unknownField":1}`]) {
           const res = await admin.call(method, path, { json });
           expect([method, path, json, res.status]).toEqual([
             method,

@@ -114,9 +114,8 @@ export function adminVotingScenarios(h: H) {
       const list = async (state: string): Promise<SittingRow[]> =>
         (
           await admin.get(`/admin/sittings?votingState=${state}&limit=50`)
-        ).json.items.map(
-          (s: { id: number }) =>
-            h.mock.ctx.state.sittings.find((x) => x.id === s.id)!,
+        ).json.items.map((s: { id: number }) =>
+          h.mock.ctx.state.sittings.find((x) => x.id === s.id)!,
         );
       const descending = (xs: number[]) =>
         expect(xs).toEqual([...xs].sort((a, b) => b - a));
@@ -124,7 +123,9 @@ export function adminVotingScenarios(h: H) {
       // closed: most recently closed or ended first.
       const closed = await list("closed");
       expect(closed.length).toBeGreaterThan(2);
-      descending(closed.map((s: SittingRow) => s.votingEndedAt ?? s.votingClosesAt!));
+      descending(
+        closed.map((s: SittingRow) => s.votingEndedAt ?? s.votingClosesAt!),
+      );
       // Closing one now puts it at the top.
       const r = refs(h.mock);
       await admin.post(`/admin/sittings/${r.openSitting.id}/voting/close`);
@@ -214,11 +215,9 @@ export function adminVotingScenarios(h: H) {
       ).toBe(404);
       expect(
         (
-          await h
-            .client()
-            .post(`/admin/sittings/${s.id}/voting`, {
-              json: { closesAt: null },
-            })
+          await h.client().post(`/admin/sittings/${s.id}/voting`, {
+            json: { closesAt: null },
+          })
         ).status,
       ).toBe(401);
     });
@@ -287,7 +286,9 @@ export function adminVotingScenarios(h: H) {
       );
       expect(gone.status).toBe(404);
       for (const s of h.mock.ctx.state.sittings) {
-        const votes = h.mock.ctx.state.votes.filter((v) => v.sittingId === s.id);
+        const votes = h.mock.ctx.state.votes.filter(
+          (v) => v.sittingId === s.id,
+        );
         if (!votes.length) continue;
         const item = (
           await admin.get(

@@ -1,3 +1,5 @@
+import { normalizeOrigin } from "./origin";
+
 // Server configuration, read once at startup. APP_ENV mirrors the backend:
 // it is independent of NODE_ENV, so a production build can run in development
 // mode (E2E does this against the mock API).
@@ -16,7 +18,7 @@ export const env = {
   /** Where the React Router server reaches the API (server to server). */
   apiOrigin: required("API_ORIGIN", "http://localhost:8787"),
   /** The public origin of this app; sent as Origin on unsafe API calls. */
-  appOrigin: required("APP_ORIGIN", "http://localhost:5173"),
+  appOrigin: normalizeOrigin(required("APP_ORIGIN", "http://localhost:5173")),
   /** Shows the email sign-in form that calls the API's dev-login. */
   devLogin: process.env.DEV_LOGIN === "1",
   /** Signs this app's own cookies (flash messages). */

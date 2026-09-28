@@ -11,7 +11,8 @@ export type FieldError = Schemas["FieldError"];
 /** Cookies owned by the API; only these are forwarded to it. */
 const API_COOKIES = ["snu_session", "snu_csrf"] as const;
 const UNSAFE = new Set(["POST", "PUT", "PATCH", "DELETE"]);
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** The request ids the Go server accepts from a trusted proxy. */
+const REQUEST_ID = /^[A-Za-z0-9._-]{1,64}$/;
 
 function parseCookieHeader(header: string | null): Map<string, string> {
   const jar = new Map<string, string>();
@@ -48,11 +49,13 @@ export class ApiSession {
     // The client address as the front proxy saw it. The Go server trusts it
     // only from Caddy and this app (see docs/frontend/plan.md, 1.6).
     this.forwardedFor = request.headers.get("X-Forwarded-For");
-    // Caddy sets one; a direct call or a malformed value gets a fresh one so
-    // every API log line still carries an id.
+    // Caddy sets one; a missing value, or one the Go server would refuse,
+    // gets a fresh one so every API log line still carries an id.
     const incomingId = request.headers.get("X-Request-ID");
     this.requestId =
-      incomingId && UUID.test(incomingId) ? incomingId : crypto.randomUUID();
+      incomingId && REQUEST_ID.test(incomingId)
+        ? incomingId
+        : crypto.randomUUID();
     this.client = createClient<paths>({
       baseUrl: `${env.apiOrigin}/api/v1`,
     });

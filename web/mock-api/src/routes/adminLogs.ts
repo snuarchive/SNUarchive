@@ -116,6 +116,8 @@ function windowInverted(f: LogFilter): boolean {
   return f.from !== undefined && f.until !== undefined && f.from >= f.until;
 }
 
+const LOG_FILTER_FIELDS = ["from", "until", "action", "userId"];
+
 function filterFromBody(body: Body): LogFilter {
   const f: LogFilter = {};
   const from = dateTime(body, "from");
@@ -216,7 +218,7 @@ export function adminLogRoutes(ctx: Ctx) {
   });
 
   r.post("/admin/logs/delete-preview", guard(ctx, "adminWrite"), async (c) => {
-    const f = filterFromBody(await readJson(c));
+    const f = filterFromBody(await readJson(c, LOG_FILTER_FIELDS));
     const count = ctx.state.logs.filter((l) => matches(f, l)).length;
     const token = randomBytes(18).toString("base64url");
     const expiresAt = ctx.now() + LIMITS.deletePreviewTtlMs;
@@ -230,7 +232,7 @@ export function adminLogRoutes(ctx: Ctx) {
 
   r.post("/admin/logs/delete", guard(ctx, "adminWrite"), async (c) => {
     const admin = me(c);
-    const body = await readJson(c);
+    const body = await readJson(c, [...LOG_FILTER_FIELDS, "token"]);
     const token = str(body, "token");
     if (token === undefined) {
       const fe = new FieldErrors();

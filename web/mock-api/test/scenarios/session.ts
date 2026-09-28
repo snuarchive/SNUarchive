@@ -46,7 +46,11 @@ export function sessionScenarios(h: H) {
         `${h.mock.ctx.options.mockOrigin}/__mock/google?state=${encodeURIComponent(next)}`,
       );
       const page = Buffer.from(
-        (await h.client().get(new URL(location!).pathname + new URL(location!).search)).bytes,
+        (
+          await h
+            .client()
+            .get(new URL(location!).pathname + new URL(location!).search)
+        ).bytes,
       ).toString("utf8");
       expect(page).toContain(`&amp;state=${encodeURIComponent(next)}`);
 
@@ -60,12 +64,16 @@ export function sessionScenarios(h: H) {
       );
       const plain = await h
         .client()
-        .get("/auth/google/callback?mock_email=student%40snu.ac.kr&state=%2Fcourses%2F12");
+        .get(
+          "/auth/google/callback?mock_email=student%40snu.ac.kr&state=%2Fcourses%2F12",
+        );
       expect(plain.headers.get("location")).toBe(`${app}/courses/12?auth=ok`);
       // Failures still go to the root.
       const gmail = await h
         .client()
-        .get("/auth/google/callback?mock_email=someone%40gmail.com&state=%2Fcourses%2F12");
+        .get(
+          "/auth/google/callback?mock_email=someone%40gmail.com&state=%2Fcourses%2F12",
+        );
       expect(gmail.headers.get("location")).toBe(`${app}/?auth=forbidden`);
 
       // Anything off the rule is ignored.
@@ -84,7 +92,9 @@ export function sessionScenarios(h: H) {
         expect(await start(bad)).toBe(chooser);
       const forged = await h
         .client()
-        .get("/auth/google/callback?mock_email=student%40snu.ac.kr&state=%2F%2Fevil.example");
+        .get(
+          "/auth/google/callback?mock_email=student%40snu.ac.kr&state=%2F%2Fevil.example",
+        );
       expect(forged.headers.get("location")).toBe(`${app}/?auth=ok`);
     });
 
@@ -154,13 +164,11 @@ export function sessionScenarios(h: H) {
     it("devLogin checks Origin but needs no CSRF token", async () => {
       const json = { email: "student@snu.ac.kr" };
       // The client has no cookies yet, so no token is sent.
-      expect(
-        (await h.client().post("/auth/dev-login", { json })).status,
-      ).toBe(204);
+      expect((await h.client().post("/auth/dev-login", { json })).status).toBe(
+        204,
+      );
       for (const origin of [null, "https://evil.example"]) {
-        const res = await h
-          .client()
-          .post("/auth/dev-login", { json, origin });
+        const res = await h.client().post("/auth/dev-login", { json, origin });
         expect(res.status).toBe(403);
         expect(res.json.error.code).toBe("CSRF_INVALID");
       }
@@ -316,14 +324,10 @@ export function sessionScenarios(h: H) {
         ).length;
       const requestsBefore = openRequests();
       expect(requestsBefore).toBeGreaterThan(0);
-      expect(
-        st().favorites.some((f) => f.userId === r.student.id),
-      ).toBe(true);
+      expect(st().favorites.some((f) => f.userId === r.student.id)).toBe(true);
       const c = await h.student();
       await c.del("/me", { headers: { "x-confirm-delete": "true" } });
-      expect(st().favorites.some((f) => f.userId === r.student.id)).toBe(
-        false,
-      );
+      expect(st().favorites.some((f) => f.userId === r.student.id)).toBe(false);
       expect(openRequests()).toBe(requestsBefore);
       // They still count as demand.
       const groups = (await (await h.admin()).get("/admin/voting-requests"))
@@ -380,9 +384,7 @@ export function sessionScenarios(h: H) {
       const page = (await c.get("/me/favorites")).json;
       expect(page.items.map((x: { id: number }) => x.id)).toEqual(reversed);
       const home = (await c.get("/courses/home")).json;
-      expect(home.favorites.map((x: { id: number }) => x.id)).toEqual(
-        reversed,
-      );
+      expect(home.favorites.map((x: { id: number }) => x.id)).toEqual(reversed);
     });
 
     it("reorderMyFavorites puts a newly pinned course first", async () => {
@@ -447,8 +449,7 @@ export function sessionScenarios(h: H) {
       expect(res.status).toBe(403);
       expect(res.json.error.code).toBe("CSRF_INVALID");
       expect(
-        (await h.client().put("/me/favorites/order", { json: { ids } }))
-          .status,
+        (await h.client().put("/me/favorites/order", { json: { ids } })).status,
       ).toBe(401);
     });
   });

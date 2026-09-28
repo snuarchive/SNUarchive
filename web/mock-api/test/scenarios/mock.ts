@@ -31,16 +31,14 @@ export function mockControlScenarios(h: H) {
 
     it("faults fail the next matching request once", async () => {
       const c = await h.student();
-      const set = await h
-        .client()
-        .post("/__mock/faults", {
-          json: {
-            method: "GET",
-            path: "/me",
-            status: 401,
-            code: "NOT_AUTHENTICATED",
-          },
-        });
+      const set = await h.client().post("/__mock/faults", {
+        json: {
+          method: "GET",
+          path: "/me",
+          status: 401,
+          code: "NOT_AUTHENTICATED",
+        },
+      });
       expect(set.status).toBe(201);
       const failed = await c.get("/me");
       expect(failed.status).toBe(401);
@@ -49,27 +47,23 @@ export function mockControlScenarios(h: H) {
       );
       expect((await c.get("/me")).status).toBe(200);
 
-      await h
-        .client()
-        .post("/__mock/faults", {
-          json: {
-            method: "PUT",
-            path: "/api/v1/sittings/*/vote",
-            status: 409,
-            code: "VOTING_NOT_OPEN",
-          },
-        });
+      await h.client().post("/__mock/faults", {
+        json: {
+          method: "PUT",
+          path: "/api/v1/sittings/*/vote",
+          status: 409,
+          code: "VOTING_NOT_OPEN",
+        },
+      });
       const r = refs(h.mock);
       const vote = await c.put(`/sittings/${r.openEndedSitting.id}/vote`, {
         json: { rating: 3 },
       });
       expect(vote.json.error.code).toBe("VOTING_NOT_OPEN");
 
-      await h
-        .client()
-        .post("/__mock/faults", {
-          json: { path: "/config", status: 503, code: "INTERNAL" },
-        });
+      await h.client().post("/__mock/faults", {
+        json: { path: "/config", status: 503, code: "INTERNAL" },
+      });
       expect((await c.get("/config", { unchecked: true })).status).toBe(503);
       expect(
         (
@@ -80,11 +74,9 @@ export function mockControlScenarios(h: H) {
       ).toBe(400);
       expect(
         (
-          await h
-            .client()
-            .post("/__mock/faults", {
-              json: { path: "/me", status: 400, code: "NOPE" },
-            })
+          await h.client().post("/__mock/faults", {
+            json: { path: "/me", status: 400, code: "NOPE" },
+          })
         ).status,
       ).toBe(400);
     });

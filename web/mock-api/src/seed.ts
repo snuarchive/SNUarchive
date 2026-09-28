@@ -892,7 +892,12 @@ export function seedState(ctx: Ctx): State {
 
   // ------------------------------------------------------------ favorites
   const favorite = (u: UserRow, c: CatalogCourse, createdAt: number) => {
-    state.favorites.push({ userId: u.id, courseId: c.id, createdAt, position: -createdAt });
+    state.favorites.push({
+      userId: u.id,
+      courseId: c.id,
+      createdAt,
+      position: -createdAt,
+    });
     addLog(u.id, "favorite_add", createdAt, { courseId: c.id });
   };
   favorite(student, C0, ago(1));

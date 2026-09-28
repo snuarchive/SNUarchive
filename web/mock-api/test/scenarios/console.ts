@@ -28,11 +28,8 @@ export function consoleScenarios(h: H) {
         adminEmails: ["admin@snu.ac.kr", "ghost@snu.ac.kr"],
       });
       expect(
-        (
-          await (
-            await h.as(SEED_ACCOUNTS.admin, ghost)
-          ).get("/admin/dashboard")
-        ).json.users.admins,
+        (await (await h.as(SEED_ACCOUNTS.admin, ghost)).get("/admin/dashboard"))
+          .json.users.admins,
       ).toBe(2);
       expect(d.trend.statistics).toHaveLength(d.trend.days);
       expect(d.catalog.lastImport.status).toBe("succeeded");
@@ -51,15 +48,15 @@ export function consoleScenarios(h: H) {
       // A college or an admission year (either) is enough.
       const newbie = await h.as(SEED_ACCOUNTS.newbie);
       await newbie.patch("/me", { json: { admissionYear: 2026 } });
-      expect(
-        (await admin.get("/admin/users/summary")).json.withProfile,
-      ).toBe(res.withProfile + 1);
+      expect((await admin.get("/admin/users/summary")).json.withProfile).toBe(
+        res.withProfile + 1,
+      );
       await newbie.patch("/me", {
         json: { admissionYear: null, college: "공과대학" },
       });
-      expect(
-        (await admin.get("/admin/users/summary")).json.withProfile,
-      ).toBe(res.withProfile + 1);
+      expect((await admin.get("/admin/users/summary")).json.withProfile).toBe(
+        res.withProfile + 1,
+      );
       expect(
         res.byCollege.find((x: { college: string }) => x.college === "공과대학")
           .count,
@@ -241,9 +238,9 @@ export function consoleScenarios(h: H) {
       expect(refused.json.error.code).toBe("LAST_ADMIN_PROTECTED");
       // Once it has signed in, it counts.
       await h.as("ghost@snu.ac.kr", ghost);
-      expect(
-        (await self.del(`/admin/admins/${r.moderator.id}`)).status,
-      ).toBe(204);
+      expect((await self.del(`/admin/admins/${r.moderator.id}`)).status).toBe(
+        204,
+      );
     });
 
     it("adminGetCatalogStatus reports the last import", async () => {
@@ -311,11 +308,9 @@ export function consoleScenarios(h: H) {
       ).toBe(401);
       expect(
         (
-          await h
-            .client()
-            .post("/internal/jobs/retention", {
-              headers: { authorization: "Bearer wrong" },
-            })
+          await h.client().post("/internal/jobs/retention", {
+            headers: { authorization: "Bearer wrong" },
+          })
         ).status,
       ).toBe(401);
       const disabled = await h

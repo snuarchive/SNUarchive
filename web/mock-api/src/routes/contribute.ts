@@ -32,6 +32,8 @@ import {
   readJson,
   readSittingKey,
   str,
+  SITTING_KEY_FIELDS,
+  FIGURE_FIELDS,
 } from "../input";
 import { LIMITS } from "../refdata";
 import type { StatisticRow, VoteRow } from "../state";
@@ -116,7 +118,11 @@ export function contributeRoutes(ctx: Ctx) {
   r.post("/courses/:courseId/statistics", guard(ctx, "write"), async (c) => {
     const user = me(c);
     const course = requireCourse(ctx, pathId(c, "courseId"));
-    const body = await readJson(c);
+    const body = await readJson(c, [
+      ...SITTING_KEY_FIELDS,
+      ...FIGURE_FIELDS,
+      "nickname",
+    ]);
     const fe = new FieldErrors();
     const key = checkSittingKey(readSittingKey(body), fe);
     const figures = completeFigures(readFigures(body));
@@ -243,7 +249,7 @@ export function contributeRoutes(ctx: Ctx) {
     async (c) => {
       const user = me(c);
       const course = requireCourse(ctx, pathId(c, "courseId"));
-      const body = await readJson(c);
+      const body = await readJson(c, [...SITTING_KEY_FIELDS, "note"]);
       const fe = new FieldErrors();
       const key = checkSittingKey(readSittingKey(body), fe);
       const rawNote = str(body, "note", { nullable: true });

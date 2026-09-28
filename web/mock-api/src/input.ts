@@ -128,6 +128,9 @@ export interface RawSittingKey {
   semester?: number | null;
 }
 
+/** The body fields readSittingKey reads. */
+export const SITTING_KEY_FIELDS = ["kindId", "number", "year", "semester"];
+
 export function readSittingKey(body: Body): RawSittingKey {
   return {
     kindId: int(body, "kindId"),
@@ -185,6 +188,9 @@ export const FIGURE_KEYS = [
   "maxScore",
 ] as const;
 export type FigureKey = (typeof FIGURE_KEYS)[number];
+
+/** The body fields readFigures reads. */
+export const FIGURE_FIELDS = [...FIGURE_KEYS, "note"];
 
 /** Present keys only, so PATCH can tell "absent" from "null". */
 export function readFigures(body: Body): Partial<Figures> {
