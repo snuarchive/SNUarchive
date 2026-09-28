@@ -1831,7 +1831,9 @@ components:
       description: |
         HttpOnly, SameSite=Lax, Secure when the app origin is https.
         HMAC-signed `{uid, exp, ep, at}`; the server also checks the account
-        is live and `ep` equals its session epoch. Sliding: once less than half
+        is live and `ep` equals its session epoch. The account must currently
+        hold an email address; if a school address is reassigned to another user,
+        the previous holder's sessions become invalid. Sliding: once less than half
         of `SESSION_TTL` is left, a response carries a renewed cookie, never
         lasting past `SESSION_MAX_AGE` from sign-in. A request with a cookie
         that no longer works gets `401` and the cookies cleared.
