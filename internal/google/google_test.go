@@ -60,6 +60,7 @@ func TestExchangeRejects(t *testing.T) {
 		{"wrong issuer", func(c fakegoogle.Claims) fakegoogle.Claims { c.Issuer = "https://evil.example"; return c }, nil, "n-1"},
 		{"expired", func(c fakegoogle.Claims) fakegoogle.Claims { c.Expiry = time.Now().Add(-time.Hour); return c }, nil, "n-1"},
 		{"wrong verifier", nil, func(string) string { return oauth2.GenerateVerifier() }, "n-1"},
+		{"empty expected nonce", func(c fakegoogle.Claims) fakegoogle.Claims { c.Nonce = ""; return c }, nil, ""},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

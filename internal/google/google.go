@@ -93,6 +93,9 @@ var errNonce = errors.New("google: nonce mismatch")
 // Exchange trades the code for tokens and verifies the ID token: signature,
 // issuer, audience and expiry (go-oidc), then the nonce from this sign-in.
 func (c *Client) Exchange(ctx context.Context, code, verifier, nonce string) (Identity, error) {
+	if nonce == "" {
+		return Identity{}, errNonce
+	}
 	ctx = context.WithValue(ctx, oauth2.HTTPClient, c.http)
 	tok, err := c.oauth.Exchange(ctx, code, oauth2.VerifierOption(verifier))
 	if err != nil {
