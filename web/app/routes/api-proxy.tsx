@@ -16,6 +16,11 @@ const HOP_BY_HOP = [
 ];
 
 async function proxy(request: Request): Promise<Response> {
+  // The Go server trusts this app's X-Forwarded-For and X-Request-ID, which
+  // this route copies from the browser; it must never serve production.
+  if (env.appEnv === "production") {
+    throw new Response("Not Found", { status: 404 });
+  }
   const url = pageUrl(request);
   const target = new URL(url.pathname + url.search, env.apiOrigin);
 

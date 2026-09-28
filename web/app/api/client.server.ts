@@ -2,11 +2,7 @@ import createClient, { type Middleware } from "openapi-fetch";
 import { createContext, data } from "react-router";
 
 import { env } from "~/lib/env.server";
-import type { ProposedPaths } from "./proposed";
 import type { components, paths } from "./schema";
-
-/** The contract plus endpoints this app has proposed to the backend. */
-type ApiPaths = paths & ProposedPaths;
 
 export type Schemas = components["schemas"];
 export type ApiError = Schemas["Error"]["error"];
@@ -15,6 +11,7 @@ export type FieldError = Schemas["FieldError"];
 /** Cookies owned by the API; only these are forwarded to it. */
 const API_COOKIES = ["snu_session", "snu_csrf"] as const;
 const UNSAFE = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function parseCookieHeader(header: string | null): Map<string, string> {
   const jar = new Map<string, string>();
@@ -38,6 +35,8 @@ export class ApiSession {
   readonly setCookies: string[] = [];
   private readonly jar: Map<string, string>;
   private readonly forwardedFor: string | null;
+  /** Ties this request's API calls to the proxy's log line for it. */
+  readonly requestId: string;
 
   constructor(request: Request) {
     const incoming = parseCookieHeader(request.headers.get("Cookie"));
@@ -47,9 +46,14 @@ export class ApiSession {
       ),
     );
     // The client address as the front proxy saw it. The Go server trusts it
-    // only from this app (see docs/frontend/plan.md, 6).
+    // only from Caddy and this app (see docs/frontend/plan.md, 1.6).
     this.forwardedFor = request.headers.get("X-Forwarded-For");
-    this.client = createClient<ApiPaths>({
+    // Caddy sets one; a direct call or a malformed value gets a fresh one so
+    // every API log line still carries an id.
+    const incomingId = request.headers.get("X-Request-ID");
+    this.requestId =
+      incomingId && UUID.test(incomingId) ? incomingId : crypto.randomUUID();
+    this.client = createClient<paths>({
       baseUrl: `${env.apiOrigin}/api/v1`,
     });
     this.client.use(this.middleware());
@@ -67,6 +71,7 @@ export class ApiSession {
         if (this.forwardedFor) {
           request.headers.set("X-Forwarded-For", this.forwardedFor);
         }
+        request.headers.set("X-Request-ID", this.requestId);
         if (UNSAFE.has(request.method)) {
           const csrf = this.jar.get("snu_csrf");
           if (csrf) request.headers.set("X-CSRF-Token", csrf);
