@@ -53,6 +53,7 @@ API 세부(경로, 스키마, 에러 코드)는 그 파일이 기준이고, 이 
 | Go 모듈 경로 | `github.com/snuarchive/snuarchive` (**소문자**). 원격 저장소 이름 `snuarchive/SNUarchive`와 대소문자가 다르다는 점을 알고 택함 |
 | Go 버전 | `go 1.27` (빌드 이미지 `golang:1.27-alpine`) |
 | 클라이언트 IP | `TRUSTED_PROXIES` CIDR 목록 방식만. Vercel에서의 동작은 O16 |
+| 신뢰 프록시(compose) | Caddy와 web(React SSR) 두 고정 IP의 /32만 신뢰(`CADDY_IP`, `WEB_IP`, 대역 `COMPOSE_SUBNET`). 경로: 브라우저 → Caddy → web → Go, OAuth 콜백은 Caddy → Go (O20) |
 | 잡 실행 기록 | `job_runs` 테이블 |
 | 헬스체크 | `/healthz`(생존), `/readyz`(DB ping). `/api/v1` 밖, 계약 대상 아님, Caddy가 외부 노출 차단 |
 | 405 | JSON 에러 봉투, 코드 `METHOD_NOT_ALLOWED`(계약에 추가), `Allow` 헤더 포함 |
@@ -66,6 +67,19 @@ API 세부(경로, 스키마, 에러 코드)는 그 파일이 기준이고, 이 
 | 테스트 격리 | 테스트마다 템플릿 DB 복제. `-short`면 DB 테스트 건너뜀, 아니면 Docker 없을 때 실패 |
 | sqlc | `go tool` 의존성(cgo, gcc 필요) |
 | 구현 방식 | 서브에이전트 구동. 도중 결정은 open-items에 기록 후 건너뛰고 단계 끝에 모아서 질문 |
+| 즐겨찾기 순서 | 사용자가 정한다(`favorites.position`, `PUT /me/favorites/order`에 전체 집합을 순서대로). 목록·ids·홈은 이 순서. 새 즐겨찾기는 맨 앞 |
+| `/config.devLoginEnabled` | `APP_ENV=development` + `DEV_LOGIN_ENABLED=true`일 때만 true(= dev-login 경로가 있을 때) |
+| 로그인 후 돌아갈 곳 | `GET /auth/google?next=` — `/`로 시작하고 `//`로 시작하지 않는 같은 출처 경로만. 서명된 state 쿠키에 담아 콜백 성공 시 그리로(`auth=ok` 덧붙임). 잘못된 값은 무시하고 `/` |
+| dev-login 검사 | `Origin`은 검사, CSRF 토큰은 요구하지 않음(세션이 아직 없음) |
+| `FieldError.field` `""` | 본문 전체(`NOTHING_SUBMITTED`)나 여러 필드에 걸친 오류(`QUARTILES_OUT_OF_ORDER`, 통계의 `VALUE_OUT_OF_RANGE`) |
+| 검색 토큰 | 토큰마다 한 필드(강의명, 교수, 학과명 하나) 안에서만 일치. 필드 경계를 넘지 않는다(5.4) |
+| 이름 마스킹 | 첫·끝 글자 유지, 사이 글자마다 `*` 하나(`김철수` → `김*수`, `남궁민수` → `남**수`). 두 글자는 첫 글자 + `*`(`김수` → `김*`), 한 글자는 그대로 |
+| `UserSummary.withProfile` | 단과대나 입학년도 중 하나라도 있는 계정 |
+| env 관리자 집계 | 로그인한 적 없는 `ADMIN_EMAILS` 주소는 대시보드 `users.admins`에도, 회수 시 마지막 관리자 판단에도 세지 않는다 |
+| 홈 `mostRequested` | 투표가 한 번도 열린 적 없는 회차의 열린 요청만 센다 |
+| 관리자 회수 대상 | 계정이 없거나 관리자가 아니면 404 `NOT_FOUND` |
+| 탈퇴 시 즐겨찾기·투표 요청 | 즐겨찾기는 삭제, 열린 투표 요청은 수요 신호로 유지 |
+| 한줄평 첫 페이지 | `GET /courses/{id}`의 `comments`는 20개 |
 | 투표 제외 기준 시각 | 제거(2026-09-28). 대안인 "시험 이후 투표 개시(개시 예약)"는 회차마다 시험 일자가 필요한데, 모든 시험의 일자를 하나하나 수집해 입력할 수 없다는 한계를 먼저 해결해야 하므로 보류(O25) |
 
 ## 3. 구조
@@ -122,7 +136,7 @@ db/migrations/         goose SQL
 - `courses(id, title, instructor_id, identity_key UNIQUE, legacy_key UNIQUE NULL, search_text, is_listed, created_at, updated_at)`
   - `identity_key`: `catalog.Identifier`가 원본 행에서 계산한 불투명 키. 임시 구현은 `sha1(norm(title)|norm(instructor))`로, 현행 `course_key`와 같다.
   - `legacy_key`: 현행 `course_key`(이주 매칭용).
-  - `search_text`: 강의명, 교수, 학과들을 공백 제거·소문자로 이은 값. importer가 갱신한다.
+  - `search_text`: 강의명, 교수, 학과들을 각각 공백 제거·소문자로 만들어 U+001F(단위 구분자)로 이은 값. importer가 갱신한다. 구분자는 토큰에 나타나지 않으므로 토큰이 필드 경계를 넘어 일치하지 않는다(5.4).
   - `is_listed`: 검색·홈 노출 여부. 상세 조회는 값과 무관하게 가능하다.
 - `course_offerings(course_id, year, semester, department_id)`: PK 전체
 - `catalog_sections(id, course_id, year, semester, course_number, lecture_number, department_id, class_time jsonb)`: `UNIQUE(year, semester, course_number, lecture_number)`
@@ -134,7 +148,9 @@ db/migrations/         goose SQL
 - `users(id, email, display_name, is_admin, college FK NULL, admission_year, last_ip inet NULL, session_epoch int DEFAULT 0, created_at, last_seen_at, deleted_at)`
   - 스크럽 CHECK: `deleted_at`이 있으면 `email`, `display_name`, `college`, `admission_year`, `last_ip`가 NULL이고 `is_admin`은 false.
   - 탈퇴 시 `session_epoch`를 올린다. 기여 행의 `nickname`과 활동 로그는 유지한다.
-- 관리자 판정: `is_admin OR email ∈ ADMIN_EMAILS`. env 관리자는 콘솔에 `source: env`로 표시하고 회수 API는 409다. "마지막 관리자" 판단에 env 관리자도 센다.
+- 관리자 판정: `is_admin OR email ∈ ADMIN_EMAILS`. env 관리자는 콘솔에 `source: env`로 표시하고 회수 API는 409다. "마지막 관리자" 판단에 env 관리자도 세되, 로그인한 적 없는(계정이 없는) env 주소는 세지 않는다. 대시보드 `users.admins`도 같다.
+- 관리자가 아닌 계정의 회수는 404 `NOT_FOUND`.
+- 탈퇴 시 그 사용자의 즐겨찾기는 삭제하고, 열린 투표 요청은 수요 신호로 남긴다.
 
 ### 4.3 시험 회차·투표
 - `assessment_kinds(id, code UNIQUE, label_ko, label_format, numbered, max_number, sort_order, is_active)`
@@ -186,16 +202,18 @@ db/migrations/         goose SQL
 
 ### 5.1 인증
 - `GET /auth/google` → state 쿠키(서명, 10분) → Google(`hd=snu.ac.kr`, `openid email profile`).
+  - `next`(선택): `/`로 시작하고 `//`로 시작하지 않으며 스킴이 없는 같은 출처 경로만 state 쿠키에 담는다. 그 밖의 값은 무시한다.
 - `GET /auth/google/callback`
   - state 검증 → 토큰 교환 → id_token 검증(서명, iss, aud, exp) → `email_verified`와 `@snu.ac.kr` 확인.
   - 사용자 upsert. `last_seen_at`, `last_ip`를 갱신하고 env 관리자 표시를 붙인다.
   - `login` 로그(ip 포함)를 남긴다.
-  - 세션 쿠키와 CSRF 쿠키를 설정하고 `/?auth=ok`로 리다이렉트한다. 실패 시 SNU 외 계정은 `/?auth=forbidden`, 그 밖은 `/?auth=error`(현행과 같은 값).
+  - 세션 쿠키와 CSRF 쿠키를 설정하고 `/?auth=ok`(state에 `next`가 있으면 그 경로에 `auth=ok`를 덧붙여)로 리다이렉트한다. 실패 시 SNU 외 계정은 `/?auth=forbidden`, 그 밖은 `/?auth=error`(현행과 같은 값).
 - 세션 쿠키 `snu_session`: `base64url(payload).sig`
   - payload = `{uid, exp, ep}`
   - `SESSION_KEYS`의 첫 키로 서명하고 모든 키로 검증한다.
   - 요청마다 `users`를 조회해 `deleted_at IS NULL`이고 `session_epoch = ep`인지 확인한다. `last_seen_at`은 최대 10분에 한 번만 갱신한다.
 - CSRF: `snu_csrf` 쿠키(읽기 가능)와 `X-CSRF-Token` 헤더를 비교한다(unsafe 메서드). `Origin` 헤더가 `APP_ORIGIN`과 다르면 거부한다.
+  - 예외: `POST /auth/dev-login`은 `Origin`만 검사하고 CSRF 토큰은 요구하지 않는다(세션이 아직 없음).
 - 로그아웃은 쿠키 삭제. "모든 기기 로그아웃"과 탈퇴는 `session_epoch`를 올린다.
 
 ### 5.2 API 표면 (제안서 대비 변경)
@@ -228,6 +246,7 @@ db/migrations/         goose SQL
 - **사용자**
   - `GET /me`: `suggestedAdmissionYear`, `calendar.currentTerm` 포함, 투표 한도 필드 제거
   - `PATCH /me`, `DELETE /me`, `POST /me/logout-all`
+  - `PUT /me/favorites/order` (즐겨찾기 전체를 원하는 순서로. 집합이 다르면 422 `INVALID_FAVORITE_ORDER`)
 - **운영 상태**
   - `GET /admin/sittings?votingState=open|closed|never|any`: 투표 관리 화면
   - `GET /admin/jobs`: 잡별 on/off(환경변수 값)와 마지막 실행 결과. API로 켜고 끄지는 않는다.
@@ -242,7 +261,7 @@ db/migrations/         goose SQL
   - `DELETE /comments/{id}`의 작성자 삭제 허용: 관리자 전용 `DELETE /admin/comments/{id}`로 옮긴다.
 - **에러**: 제안서 `Error{code, message, details}`.
   - `FieldError.code` 정정: `VALUE_BELOW_REPORTED_SCORE` → `VALUE_ABOVE_MAX_SCORE`.
-  - 추가 코드: `INVALID_ASSESSMENT_NUMBER`(필드), `VOTING_NOT_OPEN`, `VOTING_REQUEST_EXISTS`, `VOTING_REQUEST_NOT_OPEN`, `NOT_REQUEST_OWNER`, `ENV_ADMIN_PROTECTED`, `EXPORT_TOO_LARGE`, `DELETE_PREVIEW_MISMATCH`, `CONFIRMATION_REQUIRED`, `JOB_DISABLED`, `JOB_ALREADY_RUNNING`, `INTERNAL`.
+  - 추가 코드: `INVALID_ASSESSMENT_NUMBER`(필드), `INVALID_FAVORITE_ORDER`(필드), `VOTING_NOT_OPEN`, `VOTING_REQUEST_EXISTS`, `VOTING_REQUEST_NOT_OPEN`, `NOT_REQUEST_OWNER`, `ENV_ADMIN_PROTECTED`, `EXPORT_TOO_LARGE`, `DELETE_PREVIEW_MISMATCH`, `CONFIRMATION_REQUIRED`, `JOB_DISABLED`, `JOB_ALREADY_RUNNING`, `INTERNAL`.
   - 에러 본문에 `requestId`를 넣는다(`X-Request-ID` 헤더와 같은 값). 들어온 `X-Request-ID`는 직전 홉이 `TRUSTED_PROXIES`에 속할 때만 그대로 쓰고, 그 외에는 항상 새로 만든다.
   - 제거 코드: `VOTE_QUOTA_EXHAUSTED`, `RATE_LIMITED`.
 
@@ -257,6 +276,7 @@ db/migrations/         goose SQL
 ### 5.4 검색
 - 입력 → 공백 분리 → 토큰별 정규화(공백 제거, 소문자, NFC).
 - `WHERE is_listed AND search_text LIKE '%'||t1||'%' AND …`. LIKE 메타문자(`%`, `_`, `\`)는 이스케이프한다.
+- 토큰마다 한 필드(강의명, 교수, 학과명 하나) 안에서만 일치한다. `search_text`는 필드를 U+001F로 잇고 토큰에는 U+001F가 없으므로(정규화에서 제거) `LIKE`가 필드 경계를 넘지 않는다.
 - 정렬: 강의명이 첫 토큰으로 시작하는지, 최근 개설 학기 역순, 강의명, id. 커서 = 정렬 키 튜플.
 - 결과의 "투표중·최근 제보" 표시는 카탈로그가 아니라 기여 활동에 따라 바뀌므로, 카탈로그 버전만으로는 ETag가 낡는다.
   - 단일 행 테이블 `content_version(n bigint)`을 둔다. `stat_reports` 삽입·숨김, `exam_sittings` 투표 상태 변경 트리거가 n을 올린다.

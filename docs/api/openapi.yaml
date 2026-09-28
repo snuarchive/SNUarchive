@@ -90,7 +90,19 @@ paths:
       description: |
         A browser navigation, not an XHR target. Sets a signed, short-lived
         state cookie and redirects to Google with `hd=snu.ac.kr`.
+
+        `next` is kept in the signed state cookie; after a successful callback
+        the browser is sent there (still with `auth=ok` appended) instead of
+        `/`. An invalid `next` is ignored and the redirect goes to `/`.
       security: []
+      parameters:
+        - name: next
+          in: query
+          description: |
+            Where to return after signing in. A same-origin relative path: it
+            must start with `/`, must not start with `//`, and carries no
+            scheme. Example: `/courses/12`.
+          schema: { type: string }
       responses:
         '302':
           description: Redirect to Google
@@ -103,7 +115,9 @@ paths:
       description: |
         Verifies state and the ID token (signature, issuer, audience, expiry,
         `email_verified`, `@snu.ac.kr`), upserts the user, records `login`
-        with the client IP, sets both cookies and redirects to `/?auth=ok`.
+        with the client IP, sets both cookies and redirects to `/?auth=ok`
+        (or to the `next` path given to `/auth/google`, with `auth=ok`
+        appended).
 
         Failures redirect rather than render: `/?auth=forbidden` for a
         non-SNU account, `/?auth=error` otherwise. The client owns the message.
@@ -142,6 +156,10 @@ paths:
 
         Upserts the user exactly as the OAuth callback would, including the
         `ADMIN_EMAILS` check, then sets both cookies.
+
+        Checks the `Origin` header (it must equal the app origin; otherwise
+        `403 CSRF_INVALID`) but needs no CSRF token, since no session exists
+        yet. `/config.devLoginEnabled` tells the client whether this exists.
       security: []
       requestBody:
         required: true
@@ -159,6 +177,8 @@ paths:
               additionalProperties: false
       responses:
         '204': { description: Signed in }
+        '400': { $ref: '#/components/responses/Malformed' }
+        '403': { $ref: '#/components/responses/CsrfInvalid' }
         '404': { $ref: '#/components/responses/NotFound' }
         '422': { $ref: '#/components/responses/ValidationFailed' }
 
@@ -206,6 +226,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Me' }
+        '400': { $ref: '#/components/responses/Malformed' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/CsrfInvalid' }
         '422': { $ref: '#/components/responses/ValidationFailed' }
@@ -218,6 +239,8 @@ paths:
         admission year and last IP, revokes admin, stamps `deleted_at`, and
         bumps the session epoch so every session on every device ends.
         Contributions survive, attached to a row that identifies nobody.
+        The user's favourites are deleted; their open voting requests stay
+        open, since they still count as demand for voting.
 
         Not reversible, so it needs `X-Confirm-Delete: true` on top of the
         CSRF token.
@@ -256,7 +279,9 @@ paths:
       operationId: listMyFavorites
       tags: [session]
       summary: Every course the viewer has pinned
-      description: Most recently pinned first.
+      description: |
+        In the user's order (`PUT /me/favorites/order`). A newly pinned
+        course goes to the front.
       parameters:
         - { $ref: '#/components/parameters/Limit' }
         - { $ref: '#/components/parameters/Cursor' }
@@ -277,6 +302,7 @@ paths:
       description: |
         Search results carry no per-user fields so they can be cached by
         ETag. The client fetches this list once and marks favourites itself.
+        In the user's order, like `GET /me/favorites`.
       responses:
         '200':
           description: Pinned course ids
@@ -291,6 +317,42 @@ paths:
                     items: { $ref: '#/components/schemas/Id' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
 
+  /me/favorites/order:
+    put:
+      operationId: reorderMyFavorites
+      tags: [session]
+      summary: Set the order of the viewer's favourites
+      description: |
+        `ids` is the caller's whole favourite set in the desired order, first
+        to last. It must be exactly that set — nothing missing, nothing extra,
+        no duplicates — otherwise `422 VALIDATION_FAILED` with
+        `details.fields = [{ field: "ids", code: "INVALID_FAVORITE_ORDER" }]`
+        and nothing changes. An `ids` that is not an array of integers is
+        `400 MALFORMED_REQUEST`. The order is then followed by
+        `GET /me/favorites`, `GET /me/favorites/ids` and
+        `GET /courses/home` (`favorites`).
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ids]
+              properties:
+                ids:
+                  type: array
+                  items: { $ref: '#/components/schemas/Id' }
+              additionalProperties: false
+      responses:
+        '204': { description: Order saved }
+        '400': { $ref: '#/components/responses/Malformed' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/CsrfInvalid' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
   # ---------------------------------------------------------------- catalog
 
   /courses:
@@ -302,7 +364,10 @@ paths:
         The query is split on whitespace; each token is lower-cased with its
         spaces removed, and a course matches when **every** token occurs in
         its title, instructor or department names (also space-free). This is
-        substring matching, so two-letter Korean queries work.
+        substring matching, so two-letter Korean queries work. Each token must
+        occur within one field — the title, the instructor, or one department
+        name; a token never matches across a field boundary. Different tokens
+        may match different fields.
 
         Ordered by: title starts with the first token, then most recent
         offering, then title, then id. Only listed courses appear.
@@ -340,13 +405,14 @@ paths:
         Four sections of at most 10 each; any may be empty. A first-time user
         gets empty arrays, not an error.
 
-        - `favorites`: the viewer's most recently pinned courses (full list
-          at `/me/favorites`).
+        - `favorites`: the first of the viewer's favourites in the user's
+          order (full list at `/me/favorites`).
         - `votingOpen`: courses with an open sitting, soonest deadline first;
           open-ended voting sorts last.
         - `recentlyUpdated`: courses with the most recent visible statistic.
-        - `mostRequested`: courses whose not-yet-open sittings have the most
-          open voting requests.
+        - `mostRequested`: courses whose sittings have the most open voting
+          requests, counting only sittings whose voting has never been
+          opened.
       responses:
         '200':
           description: Landing sections
@@ -408,8 +474,12 @@ paths:
       summary: Leave a one-line review
       description: |
         The byline is derived server-side from the user's display name and
-        masked (`김**수`); the client does not send it. Only admins can remove
-        a comment (`DELETE /admin/comments/{commentId}`).
+        masked; the client does not send it. Masking keeps the first and last
+        character and replaces each character between with one `*`
+        (`김철수` → `김*수`, `남궁민수` → `남**수`); a two-character name keeps
+        the first and masks the second (`김수` → `김*`); a one-character name
+        is unchanged. Only admins can remove a comment
+        (`DELETE /admin/comments/{commentId}`).
       security:
         - sessionCookie: []
           csrfToken: []
@@ -435,6 +505,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Comment' }
+        '400': { $ref: '#/components/responses/Malformed' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/CsrfInvalid' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -447,7 +518,9 @@ paths:
       operationId: addFavorite
       tags: [contribute]
       summary: Pin a course
-      description: Idempotent. Re-pinning is not an error.
+      description: |
+        Idempotent. Re-pinning is not an error. A newly pinned course goes to
+        the front of the user's order.
       security:
         - sessionCookie: []
           csrfToken: []
@@ -503,6 +576,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/StatisticCreated' }
+        '400': { $ref: '#/components/responses/Malformed' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/CsrfInvalid' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -522,6 +596,9 @@ paths:
         orphan that the `upload-gc` job removes.
 
         The claimed sitting is not created until an admin approves the upload.
+
+        When several checks fail, the first in this order wins: `413`
+        (size), then `415` (type), then `422` (fields).
       security:
         - sessionCookie: []
           csrfToken: []
@@ -543,7 +620,10 @@ paths:
                 number:
                   type: [integer, 'null']
                   minimum: 1
-                  description: Required for numbered kinds, omitted otherwise.
+                  description: |
+                    Required for numbered kinds, omitted otherwise. Multipart
+                    has no null: an omitted `number` part and an empty string
+                    both mean null.
                 year:     { $ref: '#/components/schemas/Year' }
                 semester: { $ref: '#/components/schemas/Semester' }
                 nickname: { $ref: '#/components/schemas/NicknameInput' }
@@ -553,6 +633,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/PendingReport' }
+        '400': { $ref: '#/components/responses/Malformed' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/CsrfInvalid' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -597,6 +678,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/VotingRequest' }
+        '400': { $ref: '#/components/responses/Malformed' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/CsrfInvalid' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -671,6 +753,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/VoteResult' }
+        '400': { $ref: '#/components/responses/Malformed' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/CsrfInvalid' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -760,6 +843,14 @@ paths:
         The sitting defaults to the uploader's claim; any of `kindId`,
         `number`, `year`, `semester` in the body overrides it. The statistic's
         contributor is the **uploader**; the admin appears only as reviewer.
+
+        An omitted `number` keeps the claimed value. So when `kindId` changes
+        to an unnumbered kind, the body must say `number: null` explicitly;
+        otherwise the claimed number is kept and the request fails with `422`
+        `INVALID_ASSESSMENT_NUMBER`.
+
+        When several checks fail, the first in this order wins: `404`, then
+        `409`, then `422`.
       security:
         - sessionCookie: []
           csrfToken: []
@@ -787,6 +878,7 @@ paths:
                   statistic: { $ref: '#/components/schemas/Statistic' }
                   sitting:   { $ref: '#/components/schemas/SittingRef' }
                   report:    { $ref: '#/components/schemas/AdminPendingReport' }
+        '400': { $ref: '#/components/responses/Malformed' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/AdminRequired' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -819,10 +911,12 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/AdminPendingReport' }
+        '400': { $ref: '#/components/responses/Malformed' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/AdminRequired' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/ReportAlreadyReviewed' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
 
   /admin/statistics:
     get:
@@ -884,6 +978,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/AdminStatistic' }
+        '400': { $ref: '#/components/responses/Malformed' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/AdminRequired' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -920,6 +1015,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/AdminStatistic' }
+        '400': { $ref: '#/components/responses/Malformed' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/AdminRequired' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -959,9 +1055,11 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/AdminStatistic' }
+        '400': { $ref: '#/components/responses/Malformed' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/AdminRequired' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
 
   /admin/comments:
     get:
@@ -1043,6 +1141,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/AdminSitting' }
+        '400': { $ref: '#/components/responses/Malformed' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/AdminRequired' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -1053,7 +1152,10 @@ paths:
       operationId: adminListSittings
       tags: [admin-voting]
       summary: Sittings by voting state
-      description: For the voting management screen. `open` sorts by soonest deadline.
+      description: |
+        For the voting management screen. Order by `votingState`: `open` —
+        soonest deadline first; `closed` — most recently closed or ended
+        first; `never` and `any` — most recently created first.
       parameters:
         - name: votingState
           in: query
@@ -1104,6 +1206,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Voting' }
+        '400': { $ref: '#/components/responses/Malformed' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/AdminRequired' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -1132,6 +1235,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Voting' }
+        '400': { $ref: '#/components/responses/Malformed' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/AdminRequired' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -1207,9 +1311,11 @@ paths:
                 required: [rejected]
                 properties:
                   rejected: { type: integer, minimum: 0 }
+        '400': { $ref: '#/components/responses/Malformed' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/AdminRequired' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
 
   # -------------------------------------------------------------- admin-logs
 
@@ -1218,7 +1324,9 @@ paths:
       operationId: adminListLogs
       tags: [admin-logs]
       summary: The audit trail
-      description: Newest first. Filters combine with AND.
+      description: |
+        Newest first. Filters combine with AND. `from >= until` is
+        `422 VALIDATION_FAILED` with `WINDOW_INVERTED` on field `until`.
       parameters:
         - { $ref: '#/components/parameters/LogFrom' }
         - { $ref: '#/components/parameters/LogUntil' }
@@ -1235,6 +1343,7 @@ paths:
         '400': { $ref: '#/components/responses/Malformed' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/AdminRequired' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
     delete:
       operationId: adminClearLogs
       tags: [admin-logs]
@@ -1270,7 +1379,8 @@ paths:
 
         Refused with `413 EXPORT_TOO_LARGE` when the match count exceeds the
         server's `EXPORT_MAX_ROWS`; narrow the date range. Logged as
-        `logs_export` (best-effort).
+        `logs_export` (best-effort). `from >= until` is
+        `422 VALIDATION_FAILED` with `WINDOW_INVERTED` on field `until`.
       parameters:
         - name: format
           in: query
@@ -1304,6 +1414,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
 
   /admin/logs/delete-preview:
     post:
@@ -1313,6 +1424,10 @@ paths:
       description: |
         Returns the match count and a token bound to this filter and count,
         valid for 10 minutes. The delete must present the token.
+
+        At least one filter field (`from`, `until`, `action`, `userId`) is
+        required; an empty filter is `422`. `from >= until` is
+        `422 VALIDATION_FAILED` with `WINDOW_INVERTED` on field `until`.
       security:
         - sessionCookie: []
           csrfToken: []
@@ -1333,6 +1448,7 @@ paths:
                   count:     { type: integer, minimum: 0 }
                   token:     { type: string }
                   expiresAt: { type: string, format: date-time }
+        '400': { $ref: '#/components/responses/Malformed' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/AdminRequired' }
         '422': { $ref: '#/components/responses/ValidationFailed' }
@@ -1347,6 +1463,11 @@ paths:
         unchanged; otherwise `409 DELETE_PREVIEW_MISMATCH` and nothing is
         deleted. Afterwards one `logs_delete` entry records the filter and
         count.
+
+        At least one filter field (`from`, `until`, `action`, `userId`) is
+        required besides `token`; a body with only `token` is `422`.
+        `from >= until` is `422 VALIDATION_FAILED` with `WINDOW_INVERTED` on
+        field `until`.
       security:
         - sessionCookie: []
           csrfToken: []
@@ -1367,6 +1488,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/DeletedCount' }
+        '400': { $ref: '#/components/responses/Malformed' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/AdminRequired' }
         '409':
@@ -1446,6 +1568,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/AdminUser' }
+        '400': { $ref: '#/components/responses/Malformed' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/AdminRequired' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -1516,6 +1639,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/AdminUser' }
+        '400': { $ref: '#/components/responses/Malformed' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/AdminRequired' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -1534,7 +1658,11 @@ paths:
         Refused with `ENV_ADMIN_PROTECTED` when the account is admin through
         `ADMIN_EMAILS` (change the environment instead), and with
         `LAST_ADMIN_PROTECTED` when no other admin — database or env — would
-        remain.
+        remain. An env-listed address that has never signed in does not count
+        as another admin here.
+
+        `404 NOT_FOUND` when no such account exists, and also when the
+        account exists but is not an admin.
       security:
         - sessionCookie: []
           csrfToken: []
@@ -1896,7 +2024,11 @@ components:
       properties:
         field:
           type: string
-          description: JSON pointer-ish path of the offending field, e.g. `q3`.
+          description: |
+            JSON pointer-ish path of the offending field, e.g. `q3`. `""` means
+            the error concerns the body as a whole (e.g. `NOTHING_SUBMITTED`)
+            or several fields at once (`QUARTILES_OUT_OF_ORDER`, and
+            `VALUE_OUT_OF_RANGE` on statistics).
         code:
           type: string
           description: Named after the database constraint that would have caught it.
@@ -1958,6 +2090,9 @@ components:
           items: { $ref: '#/components/schemas/AssessmentKind' }
         colleges:
           type: array
+          description: |
+            From the `colleges` table, seeded by migration with the legacy
+            18-college list.
           items: { $ref: '#/components/schemas/College' }
         semesters:
           type: array
@@ -2000,7 +2135,9 @@ components:
           description: |
             The term the server considers current (Asia/Seoul). Clients use it
             to default term pickers and never compute terms from the device
-            date. A default, not a constraint.
+            date. A default, not a constraint. By month: March–June →
+            year/1, July–August → year/2, September–December → year/3,
+            January–February → (year − 1)/4.
         timezone: { type: string, examples: ['Asia/Seoul'] }
 
     # ------------------------------------------------------------------ user
@@ -2064,6 +2201,7 @@ components:
         favorites:
           type: array
           maxItems: 10
+          description: In the user's order (`PUT /me/favorites/order`).
           items: { $ref: '#/components/schemas/CourseSummary' }
         votingOpen:
           type: array
@@ -2076,6 +2214,7 @@ components:
         mostRequested:
           type: array
           maxItems: 10
+          description: Counts open requests only on sittings whose voting has never been opened.
           items:
             allOf:
               - $ref: '#/components/schemas/CourseSummary'
@@ -2112,7 +2251,12 @@ components:
           type: array
           description: Newest term first, then kind sort order, then number.
           items: { $ref: '#/components/schemas/Sitting' }
-        comments: { $ref: '#/components/schemas/CommentPage' }
+        comments:
+          allOf: [{ $ref: '#/components/schemas/CommentPage' }]
+          description: |
+            The first page of comments, newest first; a page holds 20
+            comments. Continue with `GET /courses/{courseId}/comments`
+            and `nextCursor`.
 
     CourseRef:
       type: object
@@ -2422,7 +2566,10 @@ components:
                 - $ref: '#/components/schemas/Id'
             fileUrl:
               type: string
-              description: Relative URL of `/admin/reports/{id}/file`, for `<img>`/`<iframe>`.
+              description: |
+                App-absolute path `/api/v1/admin/reports/{id}/file`, usable
+                as is in `<img>`/`<iframe>`.
+              examples: ['/api/v1/admin/reports/42/file']
 
     AdminPendingReportPage:
       type: object
@@ -2443,7 +2590,12 @@ components:
         body: { type: string, maxLength: 50 }
         author:
           type: [string, 'null']
-          description: Masked display name, e.g. `김**수`. Null for a scrubbed account.
+          description: |
+            Masked display name: first and last character kept, one `*` per
+            character between (`김철수` → `김*수`, `남궁민수` → `남**수`); a
+            two-character name becomes first + `*` (`김수` → `김*`); one
+            character is unchanged. Null for a scrubbed account.
+          examples: ['김*수']
         createdAt: { type: string, format: date-time }
 
     CommentPage:
@@ -2631,7 +2783,9 @@ components:
       required: [totalUsers, withProfile, byCollege, byAdmissionYear]
       properties:
         totalUsers:  { type: integer, description: Live accounts. }
-        withProfile: { type: integer }
+        withProfile:
+          type: integer
+          description: Live accounts with a college or an admission year (either).
         byCollege:
           type: array
           items:
@@ -2775,7 +2929,11 @@ components:
           required: [total, admins, activeThisTerm]
           properties:
             total:          { type: integer, description: Live accounts. }
-            admins:         { type: integer }
+            admins:
+              type: integer
+              description: |
+                Live accounts that are admin (database or env). An env-listed
+                address that has never signed in is not counted.
             activeThisTerm: { type: integer, description: Accounts seen since the current term began. }
         trend:   { $ref: '#/components/schemas/DailyCounts' }
         catalog: { $ref: '#/components/schemas/CatalogStatus' }
