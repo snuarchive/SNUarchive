@@ -65,7 +65,7 @@ var constraintRules = map[string]rule{
 	"stat_reports_note_ck":          field("note", apperr.TooLong),
 	"stat_reports_not_empty_ck":     field("", apperr.NothingSubmitted),
 	"stat_reports_ordered_ck":       field("", apperr.QuartilesOutOfOrder),
-	"stat_reports_within_max_ck":    field("maxScore", apperr.ValueAboveMaxScore),
+	"stat_reports_within_max_ck":    field("maxScore", apperr.ValueAboveMaxScore), // fallback: the service reports each value over maxScore
 	"stat_reports_range_ck":         field("", apperr.ValueOutOfRange),
 	"stat_reports_provenance_ck":    internalInvariant,
 	"comments_body_ck":              field("body", apperr.TooLong),

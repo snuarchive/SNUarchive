@@ -483,7 +483,8 @@ paths:
         character and replaces each character between with one `*`
         (`김철수` → `김*수`, `남궁민수` → `남**수`); a two-character name keeps
         the first and masks the second (`김수` → `김*`); a one-character name
-        is unchanged. Only admins can remove a comment
+        is unchanged. With no display name, the local part of the email (before
+        `@`) is masked the same way (`student@snu.ac.kr` → `s*****t`). Only admins can remove a comment
         (`DELETE /admin/comments/{commentId}`).
       security:
         - sessionCookie: []
@@ -1884,7 +1885,7 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
     ValidationFailed:
-      description: Field-level validation failure (`VALIDATION_FAILED`, `details.fields`)
+      description: Field-level validation failure (`VALIDATION_FAILED`, `details.fields`), including a missing required field (`REQUIRED`)
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
@@ -2036,7 +2037,12 @@ components:
             JSON pointer-ish path of the offending field, e.g. `q3`. `""` means
             the error concerns the body as a whole (e.g. `NOTHING_SUBMITTED`)
             or several fields at once (`QUARTILES_OUT_OF_ORDER`, and
-            `VALUE_OUT_OF_RANGE` on statistics).
+            `VALUE_OUT_OF_RANGE` on statistics). `VALUE_ABOVE_MAX_SCORE` is
+            reported once per value over `maxScore` (`q1`…`q4`, `average`).
+            A required field that is missing or null is `REQUIRED` on that
+            field (`422`), never `400`; `400 MALFORMED_REQUEST` is for a body
+            that is not JSON, has unknown fields or has a value of the wrong
+            JSON type.
         code:
           type: string
           description: Named after the database constraint that would have caught it.
@@ -2602,7 +2608,9 @@ components:
             Masked display name: first and last character kept, one `*` per
             character between (`김철수` → `김*수`, `남궁민수` → `남**수`); a
             two-character name becomes first + `*` (`김수` → `김*`); one
-            character is unchanged. Null for a scrubbed account.
+            character is unchanged. With no display name, the email's local
+            part is masked the same way (`student@snu.ac.kr` → `s*****t`).
+            Null for a scrubbed account.
           examples: ['김*수']
         createdAt: { type: string, format: date-time }
 
