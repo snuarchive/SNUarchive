@@ -38,14 +38,16 @@ compose가 치환하는 변수(셸 또는 `deploy/.env`에서 읽는다. 기본�
 | 변수 | 기본 | 설명 |
 |---|---|---|
 | `COMPOSE_SUBNET` | `172.30.0.0/24` | compose 네트워크 대역. VM의 다른 네트워크와 겹치면 바꾼다 |
+| `COMPOSE_IP_RANGE` | `172.30.0.128/25` | Docker가 동적 주소를 나눠 주는 범위(`docker compose run` 등). `COMPOSE_SUBNET` 안에 있어야 하고 아래 고정 주소와 겹치면 안 된다 |
 | `CADDY_IP` | `172.30.0.2` | Caddy의 고정 주소 |
 | `WEB_IP` | `172.30.0.3` | React SSR 서버(web, 프론트 단계에서 추가)의 고정 주소. 지금은 예약만 한다 |
 | `DB_IP` | `172.30.0.4` | `db`(PostgreSQL)의 고정 주소 |
 | `APP_IP` | `172.30.0.5` | `app`(Go API)의 고정 주소 |
 | `MIGRATE_IP` | `172.30.0.6` | `migrate`(1회성 마이그레이션 컨테이너)의 고정 주소 |
 
-다섯 주소는 모두 `COMPOSE_SUBNET` 안에 있어야 하고, 바꿀 때는 함께 바꾼다(겹치면 compose가
-`docker compose config`에서 바로 에러를 낸다).
+다섯 주소는 모두 `COMPOSE_SUBNET` 안, `COMPOSE_IP_RANGE` 밖에 있어야 하고, 바꿀 때는 함께 바꾼다(고정
+주소끼리 겹치면 compose가 `docker compose config`에서 바로 에러를 낸다. `COMPOSE_IP_RANGE`와 겹치는지는
+검사하지 않으므로 직접 확인한다).
 
 `app`의 `TRUSTED_PROXIES`는 `${CADDY_IP}/32,${WEB_IP}/32`로 정해진다. 두 곳만 신뢰하는 이유:
 
@@ -61,9 +63,10 @@ compose가 치환하는 변수(셸 또는 `deploy/.env`에서 읽는다. 기본�
   Caddy가 `X-Request-ID`를 항상 자신의 값으로 덮어쓰므로, Go가 신뢰하는 값은 클라이언트가 보낸
   값이 아니라 언제나 Caddy(또는 이후 web)가 만든 값이다.
 - 대역 전체를 믿으면 같은 네트워크의 다른 컨테이너(db, migrate 등)도 헤더를 위조할 수 있으므로 /32 두 개만 둔다.
-- 다섯 서비스 모두 고정 주소를 가지므로(`CADDY_IP`, `WEB_IP`, `DB_IP`, `APP_IP`, `MIGRATE_IP`),
-  Docker의 동적 할당은 전혀 쓰이지 않는다. 따라서 어떤 컨테이너가 먼저 뜨든 다른 컨테이너의
-  고정 주소를 가져갈 수 없다.
+- 다섯 서비스 모두 고정 주소를 갖지만 그것만으로는 부족하다. Docker는 멈춘 컨테이너의 고정 주소를
+  잡아 두지 않으므로, Caddy가 내려가 있을 때 `docker compose run` 같은 일회성 컨테이너가 대역의 첫
+  빈 주소인 `CADDY_IP`를 받아 신뢰 프록시가 되고, Caddy는 다시 뜨지 못한다(Docker 29에서 확인).
+  그래서 동적 할당을 `COMPOSE_IP_RANGE`(기본 `.128/25`)로 제한하고 고정 주소는 모두 그 밖에 둔다.
 
 ## Supabase 등 트랜잭션 풀러
 - 서버: `DB_POOLER_MODE=true`, `DB_MAX_CONNS`를 작게(서버리스는 2).

@@ -53,7 +53,7 @@ API 세부(경로, 스키마, 에러 코드)는 그 파일이 기준이고, 이 
 | Go 모듈 경로 | `github.com/snuarchive/snuarchive` (**소문자**). 원격 저장소 이름 `snuarchive/SNUarchive`와 대소문자가 다르다는 점을 알고 택함 |
 | Go 버전 | `go 1.27` (빌드 이미지 `golang:1.27-alpine`) |
 | 클라이언트 IP | `TRUSTED_PROXIES` CIDR 목록 방식만. Vercel에서의 동작은 O16 |
-| 신뢰 프록시(compose) | Caddy와 web(React SSR) 두 고정 IP의 /32만 신뢰(`CADDY_IP`, `WEB_IP`, 대역 `COMPOSE_SUBNET`). 경로: 브라우저 → Caddy → web → Go, OAuth 콜백은 Caddy → Go (O20) |
+| 신뢰 프록시(compose) | Caddy와 web(React SSR) 두 고정 IP의 /32만 신뢰(`CADDY_IP`, `WEB_IP`, 대역 `COMPOSE_SUBNET`). 동적 할당은 고정 주소 밖의 `COMPOSE_IP_RANGE`로 제한. 경로: 브라우저 → Caddy → web → Go, OAuth 콜백은 Caddy → Go (O20) |
 | 잡 실행 기록 | `job_runs` 테이블 |
 | 헬스체크 | `/healthz`(생존), `/readyz`(DB ping). `/api/v1` 밖, 계약 대상 아님, Caddy가 외부 노출 차단 |
 | 405 | JSON 에러 봉투, 코드 `METHOD_NOT_ALLOWED`(계약에 추가), `Allow` 헤더 포함 |
@@ -290,6 +290,7 @@ db/migrations/         goose SQL
   - `FieldError.code` 정정: `VALUE_BELOW_REPORTED_SCORE` → `VALUE_ABOVE_MAX_SCORE`.
   - 추가 코드: `INVALID_ASSESSMENT_NUMBER`(필드), `INVALID_FAVORITE_ORDER`(필드), `VOTING_NOT_OPEN`, `VOTING_REQUEST_EXISTS`, `VOTING_REQUEST_NOT_OPEN`, `NOT_REQUEST_OWNER`, `ENV_ADMIN_PROTECTED`, `EXPORT_TOO_LARGE`, `DELETE_PREVIEW_MISMATCH`, `CONFIRMATION_REQUIRED`, `JOB_DISABLED`, `JOB_ALREADY_RUNNING`, `INTERNAL`.
   - 에러 본문에 `requestId`를 넣는다(`X-Request-ID` 헤더와 같은 값). 들어온 `X-Request-ID`는 직전 홉이 `TRUSTED_PROXIES`에 속할 때만 그대로 쓰고, 그 외에는 항상 새로 만든다.
+  - 같은 이유로 들어온 추적 문맥(`traceparent`, `tracestate`, `baggage`)도 직전 홉이 신뢰 프록시일 때만 이어 받는다. 그 외에는 헤더를 버리고 새 루트 스팬을 시작한다(`OTEL_ENABLED=true`일 때).
   - 제거 코드: `VOTE_QUOTA_EXHAUSTED`, `RATE_LIMITED`.
 
 ### 5.3 업로드 흐름

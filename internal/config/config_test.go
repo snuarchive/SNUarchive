@@ -106,6 +106,7 @@ func TestErrors(t *testing.T) {
 		{"dev login in production", with(minimal(), "DEV_LOGIN_ENABLED", "true"), "DEV_LOGIN_ENABLED must not be true unless APP_ENV=development"},
 		{"google missing", with(minimal(), "GOOGLE_CLIENT_ID", ""), "GOOGLE_CLIENT_ID is required"},
 		{"non snu admin", with(minimal(), "ADMIN_EMAILS", "a@gmail.com"), "must be an @snu.ac.kr address"},
+		{"admin with two @", with(minimal(), "ADMIN_EMAILS", "a@b@snu.ac.kr"), "must be an @snu.ac.kr address"},
 		{"upload above cap", with(minimal(), "UPLOAD_MAX_BYTES", "4000000"), "UPLOAD_MAX_BYTES must be an integer between 1 and 3145728"},
 		{"s3 without bucket", with(minimal(), "STORAGE_DRIVER", "s3"), "S3_BUCKET is required"},
 		{"unknown storage", with(minimal(), "STORAGE_DRIVER", "ftp"), "STORAGE_DRIVER must be one of fs, s3"},

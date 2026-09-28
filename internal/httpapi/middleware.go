@@ -65,6 +65,26 @@ func withRequestID(trusted []netip.Prefix) func(http.Handler) http.Handler {
 	}
 }
 
+// traceHeaders are what the W3C TraceContext and Baggage propagators read.
+var traceHeaders = []string{"Traceparent", "Tracestate", "Baggage"}
+
+// withTrustedTraceContext drops incoming trace context unless the direct peer
+// is a trusted proxy, for the same reason withRequestID does: an untrusted
+// caller must not choose the trace its request joins. It runs before otelhttp,
+// which then starts a new root span.
+func withTrustedTraceContext(trusted []netip.Prefix) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if peer, ok := parsePeer(r.RemoteAddr); !ok || !isTrusted(peer, trusted) {
+				for _, k := range traceHeaders {
+					r.Header.Del(k)
+				}
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 // withClientIP honours X-Forwarded-For only when the direct peer is a trusted
 // proxy. The chain is walked right to left and the first untrusted hop wins,
 // so a client cannot spoof its address by sending the header itself. Every

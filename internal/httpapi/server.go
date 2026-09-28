@@ -59,6 +59,7 @@ func New(d Deps) *Server {
 	h = withRequestID(d.Config.TrustedProxies)(h)
 	if d.Config.OTelEnabled {
 		h = otelhttp.NewHandler(h, "snuarchive")
+		h = withTrustedTraceContext(d.Config.TrustedProxies)(h)
 	}
 	return &Server{handler: h, routes: rt.routes}
 }

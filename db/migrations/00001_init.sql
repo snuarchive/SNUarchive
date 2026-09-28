@@ -191,7 +191,7 @@ CREATE TABLE users (
   CONSTRAINT users_pk         PRIMARY KEY (id),
   CONSTRAINT users_email_u    UNIQUE (email),
   CONSTRAINT users_college_fk FOREIGN KEY (college) REFERENCES colleges (name) ON UPDATE CASCADE,
-  CONSTRAINT users_email_ck   CHECK (email IS NULL OR (email LIKE '%_@snu.ac.kr' AND email = lower(email))),
+  CONSTRAINT users_email_ck   CHECK (email IS NULL OR (email ~ '^[^@]+@snu\.ac\.kr$' AND email = lower(email))),
   CONSTRAINT users_live_ck    CHECK (deleted_at IS NOT NULL OR email IS NOT NULL),
   CONSTRAINT users_scrubbed_ck CHECK (
     deleted_at IS NULL
@@ -526,8 +526,9 @@ INSERT INTO content_version DEFAULT VALUES;
 CREATE TRIGGER stat_reports_content_version
   AFTER INSERT OR DELETE OR UPDATE OF sitting_id, hidden_at ON stat_reports
   FOR EACH STATEMENT EXECUTE FUNCTION bump_content_version();
+-- INSERT too: a sitting can be created with voting already open
 CREATE TRIGGER exam_sittings_content_version
-  AFTER UPDATE OF voting_opened_at, voting_closes_at, voting_ended_at ON exam_sittings
+  AFTER INSERT OR UPDATE OF voting_opened_at, voting_closes_at, voting_ended_at ON exam_sittings
   FOR EACH STATEMENT EXECUTE FUNCTION bump_content_version();
 
 -- ---------------------------------------------------------------- views

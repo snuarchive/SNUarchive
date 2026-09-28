@@ -97,9 +97,13 @@ networks:
     ipam:
       config:
         - subnet: ${COMPOSE_SUBNET:-172.30.0.0/24}
-          # every service below has a fixed ipv4_address, so Docker's dynamic
-          # allocation is never used and can never take an address this file
-          # assigns (CADDY_IP, WEB_IP, DB_IP, APP_IP, MIGRATE_IP)
+          # Docker hands out dynamic addresses (`docker compose run`, any
+          # container attached without ipv4_address) only from ip_range. The
+          # fixed addresses above (CADDY_IP, WEB_IP, DB_IP, APP_IP, MIGRATE_IP)
+          # must stay outside it: Docker does not hold a stopped container's
+          # fixed address, so without this a one-off container could take
+          # CADDY_IP while Caddy is down and be trusted as a proxy
+          ip_range: ${COMPOSE_IP_RANGE:-172.30.0.128/25}
 
 volumes:
   pgdata:

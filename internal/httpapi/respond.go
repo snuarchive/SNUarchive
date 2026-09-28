@@ -3,6 +3,7 @@ package httpapi
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 	"maps"
 	"net/http"
@@ -70,7 +71,9 @@ func decodeJSON(r *http.Request, v any) error {
 		}
 		return apperr.New(apperr.MalformedRequest).Wrap(err)
 	}
-	if dec.More() {
+	// dec.More reports only a following value, so a stray } or ] would slip
+	// through; anything but EOF after the object is rejected
+	if _, err := dec.Token(); err != io.EOF {
 		return apperr.New(apperr.MalformedRequest).WithMessage("JSON 객체 하나만 보낼 수 있습니다.")
 	}
 	return nil

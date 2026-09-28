@@ -159,6 +159,12 @@ func TestUserScrubMustBeComplete(t *testing.T) {
 	if got := constraintOf(t, err); got != "users_email_ck" {
 		t.Fatalf("non-snu email: constraint = %q", got)
 	}
+	for _, email := range []string{"a@b@snu.ac.kr", "@snu.ac.kr", "a@snu.ac.krx", "a@snuXac.kr", "Student@snu.ac.kr"} {
+		_, err = pool.Exec(context.Background(), `INSERT INTO users (email) VALUES ($1)`, email)
+		if got := constraintOf(t, err); got != "users_email_ck" {
+			t.Fatalf("%s: constraint = %q", email, got)
+		}
+	}
 }
 
 func TestOneOpenVotingRequestPerUser(t *testing.T) {
@@ -197,6 +203,12 @@ func TestContentVersionBumps(t *testing.T) {
 	mustExec(t, pool, `UPDATE exam_sittings SET kind_id = kind_id WHERE id = $1`, sitting)
 	if v := version(); v != v0+2 {
 		t.Fatalf("unwatched column update must not bump: %d", v)
+	}
+	// a sitting created with voting already open changes the badge too
+	mustExec(t, pool, `INSERT INTO exam_sittings (course_id, kind_id, year, semester, voting_opened_at)
+		SELECT $1, id, 2026, 1, now() FROM assessment_kinds WHERE code = 'final'`, f.courseID)
+	if v := version(); v != v0+3 {
+		t.Fatalf("after inserting an open sitting: %d, want %d", v, v0+3)
 	}
 }
 

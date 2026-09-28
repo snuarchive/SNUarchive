@@ -197,6 +197,38 @@ func TestCSRF(t *testing.T) {
 	}
 }
 
+// Trace context comes only from trusted proxies, like X-Request-ID (O19):
+// otherwise any client could pick the trace its request joins.
+func TestTraceContextOnlyFromTrustedPeers(t *testing.T) {
+	trusted := []netip.Prefix{netip.MustParsePrefix("172.30.0.2/32")}
+	headers := []string{"Traceparent", "Tracestate", "Baggage"}
+	var seen http.Header
+	h := withTrustedTraceContext(trusted)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen = r.Header.Clone()
+	}))
+	send := func(remoteAddr string) {
+		req := httptest.NewRequest(http.MethodGet, "/x", nil)
+		req.RemoteAddr = remoteAddr
+		for _, k := range headers {
+			req.Header.Set(k, "v")
+		}
+		h.ServeHTTP(httptest.NewRecorder(), req)
+	}
+
+	send("203.0.113.9:5000")
+	for _, k := range headers {
+		if seen.Get(k) != "" {
+			t.Errorf("untrusted peer: %s kept", k)
+		}
+	}
+	send("172.30.0.2:5000")
+	for _, k := range headers {
+		if seen.Get(k) != "v" {
+			t.Errorf("trusted peer: %s dropped", k)
+		}
+	}
+}
+
 func TestBodyLimitAndDecode(t *testing.T) {
 	rt := testRouter()
 	decode := func(w http.ResponseWriter, r *http.Request) {
@@ -223,6 +255,14 @@ func TestBodyLimitAndDecode(t *testing.T) {
 	}
 	if rec := post("/json", `{"name":"a"}{"name":"b"}`); rec.Code != 400 {
 		t.Fatalf("two objects: %d", rec.Code)
+	}
+	for _, body := range []string{`{"name":"a"}}`, `{"name":"a"}]`, `{"name":"a"} x`} {
+		if rec := post("/json", body); rec.Code != 400 || errorCode(t, rec) != "MALFORMED_REQUEST" {
+			t.Fatalf("trailing data %q: %d %s", body, rec.Code, rec.Body.String())
+		}
+	}
+	if rec := post("/json", "{\"name\":\"a\"}\n"); rec.Code != http.StatusNoContent {
+		t.Fatalf("trailing newline: %d %s", rec.Code, rec.Body.String())
 	}
 	if rec := post("/json", `{"name":"a"}`); rec.Code != http.StatusNoContent {
 		t.Fatalf("valid: %d %s", rec.Code, rec.Body.String())
