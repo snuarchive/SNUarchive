@@ -179,8 +179,9 @@ paths:
         otherwise the route is not registered and returns 404. The server
         refuses to start with this enabled in production.
 
-        Upserts the user exactly as the OAuth callback would, including the
-        `ADMIN_EMAILS` check, then sets both cookies.
+        Finds or creates the account by email (it never sets a Google sub);
+        the display name is stored only when the account is created. Applies
+        the `ADMIN_EMAILS` check, then sets both cookies.
 
         Checks the `Origin` header (it must equal the app origin; otherwise
         `403 CSRF_INVALID`) but needs no CSRF token, since no session exists
@@ -265,19 +266,21 @@ paths:
       summary: Delete the account
       description: |
         Scrubs rather than deletes: clears email, display name, college,
-        admission year and last IP, revokes admin, stamps `deleted_at`, and
-        bumps the session epoch so every session on every device ends.
-        Contributions survive, attached to a row that identifies nobody.
-        The user's favourites are deleted; their open voting requests stay
-        open, since they still count as demand for voting.
+        admission year, last IP and the Google account link (sub), revokes
+        admin, stamps `deleted_at`, and bumps the session epoch so every
+        session on every device ends. Contributions survive, attached to a
+        row that identifies nobody. The user's favourites are deleted; their
+        open voting requests stay open, since they still count as demand for
+        voting.
 
         Not reversible, so it needs `X-Confirm-Delete: true` on top of the
         CSRF token.
 
-        Surface before the button: signing in again creates a new account
-        with no access to the old contributions; nicknames typed onto
-        statistics and uploads are kept as written; activity log entries are
-        kept until the retention policy removes them.
+        Surface before the button: clearing the Google sub is why signing in
+        again creates a new account with no access to the old contributions;
+        nicknames typed onto statistics and uploads are kept as written;
+        activity log entries are kept until the retention policy removes
+        them.
       security:
         - sessionCookie: []
           csrfToken: []
