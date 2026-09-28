@@ -99,9 +99,13 @@ paths:
         - name: next
           in: query
           description: |
-            Where to return after signing in. A same-origin relative path: it
-            must start with `/`, must not start with `//`, and carries no
-            scheme. Example: `/courses/12`.
+            Where to return after signing in. Valid only if all of: it starts
+            with `/`; its second character is not `/` or `\`; it contains no
+            `\` anywhere; it contains no control or whitespace character
+            (U+0000–U+001F, U+007F, space); and parsing it as a URL relative
+            to the app origin yields the app origin back (no scheme, no
+            host). Anything else is ignored and the redirect goes to `/`.
+            Example: `/courses/12`.
           schema: { type: string }
       responses:
         '302':
@@ -116,8 +120,9 @@ paths:
         Verifies state and the ID token (signature, issuer, audience, expiry,
         `email_verified`, `@snu.ac.kr`), upserts the user, records `login`
         with the client IP, sets both cookies and redirects to `/?auth=ok`
-        (or to the `next` path given to `/auth/google`, with `auth=ok`
-        appended).
+        (or to the `next` path given to `/auth/google`, with `auth=ok` added
+        as a query parameter — any existing query string and fragment on
+        `next` are preserved).
 
         Failures redirect rather than render: `/?auth=forbidden` for a
         non-SNU account, `/?auth=error` otherwise. The client owns the message.

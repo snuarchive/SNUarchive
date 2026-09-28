@@ -69,7 +69,7 @@ API 세부(경로, 스키마, 에러 코드)는 그 파일이 기준이고, 이 
 | 구현 방식 | 서브에이전트 구동. 도중 결정은 open-items에 기록 후 건너뛰고 단계 끝에 모아서 질문 |
 | 즐겨찾기 순서 | 사용자가 정한다(`favorites.position`, `PUT /me/favorites/order`에 전체 집합을 순서대로). 목록·ids·홈은 이 순서. 새 즐겨찾기는 맨 앞 |
 | `/config.devLoginEnabled` | `APP_ENV=development` + `DEV_LOGIN_ENABLED=true`일 때만 true(= dev-login 경로가 있을 때) |
-| 로그인 후 돌아갈 곳 | `GET /auth/google?next=` — `/`로 시작하고 `//`로 시작하지 않는 같은 출처 경로만. 서명된 state 쿠키에 담아 콜백 성공 시 그리로(`auth=ok` 덧붙임). 잘못된 값은 무시하고 `/` |
+| 로그인 후 돌아갈 곳 | `GET /auth/google?next=` — 유효한 `next`는 다음을 모두 만족해야 한다: `/`로 시작, 두 번째 글자가 `/`나 `\`가 아님, 어디에도 `\`를 포함하지 않음, 제어문자나 공백(U+0000–U+001F, U+007F, space)을 포함하지 않음, 앱 출처를 기준으로 URL로 파싱했을 때 결과가 다시 앱 출처가 됨(스킴도 호스트도 없음). 그 밖의 값은 무시하고 `/`로 간다. 서명된 state 쿠키에 담아 콜백 성공 시 그리로 감(쿼리 파라미터로 `auth=ok`를 덧붙이되, 기존 쿼리와 프래그먼트는 유지) |
 | dev-login 검사 | `Origin`은 검사, CSRF 토큰은 요구하지 않음(세션이 아직 없음) |
 | `FieldError.field` `""` | 본문 전체(`NOTHING_SUBMITTED`)나 여러 필드에 걸친 오류(`QUARTILES_OUT_OF_ORDER`, 통계의 `VALUE_OUT_OF_RANGE`) |
 | 검색 토큰 | 토큰마다 한 필드(강의명, 교수, 학과명 하나) 안에서만 일치. 필드 경계를 넘지 않는다(5.4) |
@@ -212,12 +212,17 @@ db/migrations/         goose SQL
 
 ### 5.1 인증
 - `GET /auth/google` → state 쿠키(서명, 10분) → Google(`hd=snu.ac.kr`, `openid email profile`).
-  - `next`(선택): `/`로 시작하고 `//`로 시작하지 않으며 스킴이 없는 같은 출처 경로만 state 쿠키에 담는다. 그 밖의 값은 무시한다.
+  - `next`(선택): 다음을 모두 만족해야 state 쿠키에 담는다 — `/`로 시작, 두 번째 글자가 `/`나
+    `\`가 아님, 어디에도 `\`를 포함하지 않음, 제어문자나 공백(U+0000–U+001F, U+007F, space)을
+    포함하지 않음, 앱 출처를 기준으로 URL로 파싱했을 때 결과가 다시 앱 출처가 됨(스킴도 호스트도
+    없음). 그 밖의 값은 무시한다.
 - `GET /auth/google/callback`
   - state 검증 → 토큰 교환 → id_token 검증(서명, iss, aud, exp) → `email_verified`와 `@snu.ac.kr` 확인.
   - 사용자 upsert. `last_seen_at`, `last_ip`를 갱신하고 env 관리자 표시를 붙인다.
   - `login` 로그(ip 포함)를 남긴다.
-  - 세션 쿠키와 CSRF 쿠키를 설정하고 `/?auth=ok`(state에 `next`가 있으면 그 경로에 `auth=ok`를 덧붙여)로 리다이렉트한다. 실패 시 SNU 외 계정은 `/?auth=forbidden`, 그 밖은 `/?auth=error`(현행과 같은 값).
+  - 세션 쿠키와 CSRF 쿠키를 설정하고 `/?auth=ok`(state에 `next`가 있으면 그 경로로, 쿼리
+    파라미터로 `auth=ok`를 덧붙이되 기존 쿼리와 프래그먼트는 유지)로 리다이렉트한다. 실패 시
+    SNU 외 계정은 `/?auth=forbidden`, 그 밖은 `/?auth=error`(현행과 같은 값).
 - 세션 쿠키 `snu_session`: `base64url(payload).sig`
   - payload = `{uid, exp, ep}`
   - `SESSION_KEYS`의 첫 키로 서명하고 모든 키로 검증한다.
