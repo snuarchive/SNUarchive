@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"golang.org/x/oauth2"
@@ -58,7 +59,10 @@ func New(ctx context.Context, o Options) *Client {
 	}
 	hc := o.HTTPClient
 	if hc == nil {
-		hc = http.DefaultClient
+		// A hung connection to Google must not block every sign-in; this
+		// client is used both for the token exchange and, through
+		// oidc.ClientContext, for JWKS fetches.
+		hc = &http.Client{Timeout: 10 * time.Second}
 	}
 	keys := oidc.NewRemoteKeySet(oidc.ClientContext(ctx, hc), def(o.JWKSURL, JWKSURL))
 	return &Client{
