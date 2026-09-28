@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -148,17 +150,10 @@ func freeAddr(t *testing.T) string {
 	return addr
 }
 
-func TestServeAndShutdown(t *testing.T) {
-	addr := freeAddr(t)
-	lookup := env(map[string]string{
-		"APP_ENV":           "development",
-		"APP_ORIGIN":        "http://localhost:3000",
-		"DATABASE_URL":      pgtest.NewDatabase(t),
-		"SESSION_KEYS":      base64.StdEncoding.EncodeToString(bytes.Repeat([]byte("k"), 32)),
-		"DEV_LOGIN_ENABLED": "true",
-		"HTTP_ADDR":         addr,
-		"LOG_LEVEL":         "warn",
-	})
+// startServe runs "serve" in the background and waits for it to answer
+// /healthz. The caller must stopServe it.
+func startServe(t *testing.T, lookup func(string) (string, bool), addr string) (context.CancelFunc, <-chan int) {
+	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan int, 1)
 	go func() { code, _, _ := runCLI(ctx, lookup, "serve"); done <- code }()
@@ -178,12 +173,11 @@ func TestServeAndShutdown(t *testing.T) {
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	resp, err := http.Get("http://" + addr + "/api/v1/config")
-	if err != nil || resp.StatusCode != http.StatusOK {
-		t.Fatalf("config: %v %v", resp, err)
-	}
-	resp.Body.Close()
+	return cancel, done
+}
 
+func stopServe(t *testing.T, cancel context.CancelFunc, done <-chan int) {
+	t.Helper()
 	cancel()
 	select {
 	case code := <-done:
@@ -192,5 +186,104 @@ func TestServeAndShutdown(t *testing.T) {
 		}
 	case <-time.After(20 * time.Second):
 		t.Fatal("server did not shut down")
+	}
+}
+
+func TestServeAndShutdown(t *testing.T) {
+	addr := freeAddr(t)
+	lookup := env(map[string]string{
+		"APP_ENV":           "development",
+		"APP_ORIGIN":        "http://localhost:3000",
+		"DATABASE_URL":      pgtest.NewDatabase(t),
+		"SESSION_KEYS":      base64.StdEncoding.EncodeToString(bytes.Repeat([]byte("k"), 32)),
+		"DEV_LOGIN_ENABLED": "true",
+		"HTTP_ADDR":         addr,
+		"LOG_LEVEL":         "warn",
+	})
+	cancel, done := startServe(t, lookup, addr)
+
+	resp, err := http.Get("http://" + addr + "/api/v1/config")
+	if err != nil || resp.StatusCode != http.StatusOK {
+		t.Fatalf("config: %v %v", resp, err)
+	}
+	resp.Body.Close()
+
+	// dev-login must reach a live account through Deps.Accounts, and the
+	// session it starts must authenticate /me: proof that serve wires
+	// sign-in end to end, not just that the process answers requests.
+	req, err := http.NewRequest(http.MethodPost, "http://"+addr+"/api/v1/auth/dev-login", strings.NewReader(`{"email":"kim@snu.ac.kr"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Origin", "http://localhost:3000")
+	req.Header.Set("Content-Type", "application/json")
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil || resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("dev-login: %v %v", resp, err)
+	}
+	var session *http.Cookie
+	for _, c := range resp.Cookies() {
+		if c.Name == "snu_session" {
+			session = c
+		}
+	}
+	resp.Body.Close()
+	if session == nil {
+		t.Fatal("dev-login did not set snu_session")
+	}
+
+	req, err = http.NewRequest(http.MethodGet, "http://"+addr+"/api/v1/me", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.AddCookie(session)
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil || resp.StatusCode != http.StatusOK {
+		t.Fatalf("me: %v %v", resp, err)
+	}
+	body, err := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil || !strings.Contains(string(body), `"email":"kim@snu.ac.kr"`) {
+		t.Fatalf("me body: %q %v", body, err)
+	}
+
+	stopServe(t, cancel, done)
+}
+
+// TestServeRedirectsToGoogle proves serve wires the Google client: with no
+// dev login, /auth/google must send the browser to accounts.google.com with
+// a redirect_uri that matches APP_ORIGIN.
+func TestServeRedirectsToGoogle(t *testing.T) {
+	addr := freeAddr(t)
+	lookup := env(map[string]string{
+		"APP_ORIGIN":           "http://localhost:3000",
+		"DATABASE_URL":         pgtest.NewDatabase(t),
+		"SESSION_KEYS":         base64.StdEncoding.EncodeToString(bytes.Repeat([]byte("k"), 32)),
+		"GOOGLE_CLIENT_ID":     "test-client-id",
+		"GOOGLE_CLIENT_SECRET": "test-client-secret",
+		"HTTP_ADDR":            addr,
+		"LOG_LEVEL":            "warn",
+	})
+	cancel, done := startServe(t, lookup, addr)
+	defer stopServe(t, cancel, done)
+
+	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	resp, err := client.Get("http://" + addr + "/api/v1/auth/google")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	loc, err := url.Parse(resp.Header.Get("Location"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loc.Host != "accounts.google.com" {
+		t.Fatalf("host = %s", loc.Host)
+	}
+	if got := loc.Query().Get("redirect_uri"); got != "http://localhost:3000/api/v1/auth/google/callback" {
+		t.Fatalf("redirect_uri = %s", got)
 	}
 }
