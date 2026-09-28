@@ -399,6 +399,12 @@ db/migrations/         goose SQL
 ## 9. 구현 단계
 각 단계는 별도 구현 계획 문서를 가진다(`docs/superpowers/plans/`).
 
+**PR 경계(2026-09-28 사용자 결정):** 한 PR은 한 단계를 담는다.
+- 1단계 PR(#1)은 2026-09-28 기준으로 범위를 닫았다. 이후에는 1단계 코드·배포의 결함 수정만 받는다.
+- 계약(`docs/api/openapi.yaml`), 스키마, 이 설계서의 변경은 그 기능을 구현하는 단계의 PR에 넣는다. 구현 없이 문서만 먼저 맞춰야 하면 별도의 계약 PR을 연다.
+- 프론트엔드 요청이나 리뷰에서 나온 결정 중 아직 구현하지 않는 기능에 대한 것은 `docs/backend/open-items.md`에 적고, 해당 단계에서 반영한다.
+- 1단계가 main에 병합된 뒤에는 `00001_init.sql`을 고치지 않는다. 스키마 변경은 새 마이그레이션으로 한다.
+
 1. **기반**
    - go.mod, config, calendar, telemetry
    - db(pool, goose, sqlc), 마이그레이션 v1 전체
