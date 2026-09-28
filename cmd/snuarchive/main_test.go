@@ -111,6 +111,25 @@ func TestMigrateYesRejectedExceptForDown(t *testing.T) {
 	}
 }
 
+func TestDevSeed(t *testing.T) {
+	ctx := context.Background()
+	url := pgtest.NewDatabase(t)
+	if code, _, stderr := runCLI(ctx, env(map[string]string{"DATABASE_URL": url}), "dev", "seed"); code != 1 || !strings.Contains(stderr, "APP_ENV must be development") {
+		t.Fatalf("without APP_ENV: %d %q", code, stderr)
+	}
+	prod := env(map[string]string{"DATABASE_URL": url, "APP_ENV": "production"})
+	if code, _, _ := runCLI(ctx, prod, "dev", "seed"); code != 1 {
+		t.Fatalf("production: %d", code)
+	}
+	dev := env(map[string]string{"DATABASE_URL": url, "APP_ENV": "development"})
+	if code, stdout, stderr := runCLI(ctx, dev, "dev", "seed"); code != 0 || !strings.Contains(stdout, "seeded") {
+		t.Fatalf("seed: %d %q %q", code, stdout, stderr)
+	}
+	if code, _, _ := runCLI(ctx, dev, "dev", "sow"); code != 2 {
+		t.Fatalf("bad subcommand: %d", code)
+	}
+}
+
 func TestServeRejectsBadConfig(t *testing.T) {
 	code, _, stderr := runCLI(context.Background(), env(nil), "serve")
 	if code != 1 || !strings.Contains(stderr, "DATABASE_URL is required") {
