@@ -12,9 +12,21 @@ describe("normalizeOrigin", () => {
     );
   });
 
-  it("refuses more than an origin", () => {
+  it("matches the backend's examples (internal/config/parse.go)", () => {
+    expect(normalizeOrigin("HTTPS://Archive.Example.com:443/")).toBe(
+      "https://archive.example.com",
+    );
+    expect(normalizeOrigin("http://localhost:80")).toBe("http://localhost");
+    expect(normalizeOrigin("https://archive.example.com:80")).toBe(
+      "https://archive.example.com:80",
+    );
+  });
+
+  it("refuses more than an http or https origin", () => {
     expect(() => normalizeOrigin("https://a.example/app")).toThrow();
     expect(() => normalizeOrigin("https://a.example/?x=1")).toThrow();
+    expect(() => normalizeOrigin("https://user@a.example")).toThrow();
+    expect(() => normalizeOrigin("ftp://a.example")).toThrow();
     expect(() => normalizeOrigin("a.example")).toThrow();
   });
 });

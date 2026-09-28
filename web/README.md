@@ -66,8 +66,8 @@ CI(`.github/workflows/web.yml`)는 위 검사를 모두 돌린다. 계약 파일
 ## Go 백엔드로 E2E
 
 `E2E_TARGET`으로 E2E가 붙을 API를 고른다. 목업이 아니면 테스트마다 DB를
-백엔드 개발 시드로 되돌리는 명령을 `E2E_RESET_CMD`에 준다(백엔드에 요청해 둔
-시드 명령). 목업의 장애 주입이 필요한 테스트는 건너뛴다.
+백엔드 개발 시드로 되돌리는 명령(`snuarchive dev seed`)을 `E2E_RESET_CMD`에 준다.
+시드는 백엔드 단계마다 늘어나므로 Go 대상 E2E는 구현된 만큼만 통과한다. 목업의 장애 주입이 필요한 테스트는 건너뛴다.
 
 | `E2E_TARGET` | Playwright가 띄우는 것 | 준비                                                                                                                                                                           |
 | ------------ | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -76,8 +76,10 @@ CI(`.github/workflows/web.yml`)는 위 검사를 모두 돌린다. 계약 파일
 | `compose`    | 없음                   | 배포 compose 전체(Caddy 포함)를 개발 모드로 띄움. 주소 `E2E_BASE_URL`(기본 `http://localhost`)                                                                                 |
 
 ```sh
-E2E_RESET_CMD='…시드 명령…' pnpm test:e2e:go
-E2E_RESET_CMD='…시드 명령…' pnpm test:e2e:compose
+# 명령은 web/에서 실행된다. 병합 전에는 백엔드 워크트리로 이동해서 부른다.
+E2E_RESET_CMD='cd ../../go-backend && go run ./cmd/snuarchive dev seed' pnpm test:e2e:go
+# compose 스택(-f compose.yaml -f compose.e2e.yaml, 두 PR 병합 뒤)
+E2E_RESET_CMD='docker compose -f ../deploy/compose.yaml -f ../deploy/compose.e2e.yaml exec -T app snuarchive dev seed' pnpm test:e2e:compose
 ```
 
 ## 컨테이너

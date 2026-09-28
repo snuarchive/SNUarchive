@@ -77,15 +77,15 @@
 
 ### 1.6 Go 연동·전환 준비 (2026-09-28 결정)
 
-| 항목          | 결정                                                                                                                                                                                                                   |
-| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 배포          | VM의 compose에 web(React SSR)을 Go·Postgres·Caddy와 함께 올림. Caddy: `/api/*` → Go, 나머지 → web                                                                                                                      |
-| 이미지        | `web/Dockerfile`(컨텍스트 `web/`, `node:24-alpine`, `node` 사용자, 포트 3000)                                                                                                                                          |
-| compose·Caddy | 백엔드가 수정. 프론트는 요청 문서만 남김(`.worktrees/go-backend/FRONTEND_REQUESTS.md`, 2차)                                                                                                                            |
-| 요청 ID       | web이 받은 `X-Request-ID`(Caddy가 붙임)가 UUID 형식이면 그대로, 아니면 새로 만들어 그 요청의 모든 Go 호출에 붙임. `X-Forwarded-For`는 받은 그대로                                                                      |
-| 이전 앱       | 이 브랜치에서 삭제: `public/`, `api/`, `scripts/`, `firebase/`, `server.js`, `vercel.json`, 루트 `package.json`·`package-lock.json`, `.env.example`. 원본 학기 JSON은 유지. 루트 README 새로 씀                        |
-| Go 상대 E2E   | `E2E_TARGET=mock`(기본)·`go`(`go run` + Postgres, 평소)·`compose`(배포 스택 전체, 배포 전). 목업이 아니면 테스트마다 `E2E_RESET_CMD`로 백엔드 개발 시드 실행(시드 명령은 백엔드에 요청). 장애 주입 테스트는 목업에서만 |
-| 계약 파일     | 병합 전까지 미커밋 심볼릭 링크 유지. 병합 뒤 링크를 저장소 안 경로(`../../docs/api/openapi.yaml`)로 바꿔 커밋하고 CI에서 계약 검증을 켬                                                                                |
+| 항목          | 결정                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 배포          | VM의 compose에 web(React SSR)을 Go·Postgres·Caddy와 함께 올림. Caddy: `/api/*` → Go, 나머지 → web                                                                                                                                                                                                                                                                                                                                                                        |
+| 이미지        | `web/Dockerfile`(컨텍스트 `web/`, `node:24-alpine`, `node` 사용자, 포트 3000)                                                                                                                                                                                                                                                                                                                                                                                            |
+| compose·Caddy | 백엔드가 수정. 프론트는 요청 메모만 남김(`.worktrees/go-backend/FRONTEND_REQUESTS.md`). 백엔드 답: **두 PR 병합 뒤** main에서 compose `web` 서비스, Caddy 라우팅, E2E용 `deploy/compose.e2e.yaml`, `.env.example`의 `WEB_SESSION_SECRET`을 넣음(`feature/go-backend`에는 `web/`이 없어 병합 전에는 불가)                                                                                                                                                                 |
+| 요청 ID       | web이 받은 `X-Request-ID`(Caddy가 붙임)가 UUID 형식이면 그대로, 아니면 새로 만들어 그 요청의 모든 Go 호출에 붙임. `X-Forwarded-For`는 받은 그대로                                                                                                                                                                                                                                                                                                                        |
+| 이전 앱       | 이 브랜치에서 삭제: `public/`, `api/`, `scripts/`, `firebase/`, `server.js`, `vercel.json`, 루트 `package.json`·`package-lock.json`, `.env.example`. 원본 학기 JSON은 유지. 루트 README 새로 씀                                                                                                                                                                                                                                                                          |
+| Go 상대 E2E   | `E2E_TARGET=mock`(기본)·`go`(`go run` + Postgres, 평소)·`compose`(배포 스택 전체, 배포 전). 목업이 아니면 테스트마다 `E2E_RESET_CMD`로 백엔드 개발 시드 실행: `snuarchive dev seed`(`go run ./cmd/snuarchive dev seed`, compose는 `docker compose exec app snuarchive dev seed`). 시드는 백엔드 2단계부터 단계마다 늘어나므로 Go 대상 E2E도 단계만큼만 통과. 시드 카탈로그는 작은 고정 목록(E2E가 찾는 강의는 `미적분학 1`, `선형대수학`). 장애 주입 테스트는 목업에서만 |
+| 계약 파일     | 병합 전까지 미커밋 심볼릭 링크 유지. 병합 뒤 링크를 저장소 안 경로(`../../docs/api/openapi.yaml`)로 바꿔 커밋하고 CI에서 계약 검증을 켬                                                                                                                                                                                                                                                                                                                                  |
 
 ## 2. 라우트
 
@@ -119,7 +119,7 @@
 ## 4. 남은 일(이번 범위 밖)
 
 - 백엔드 병합 뒤: 계약 링크를 저장소 안 경로로 바꾸고 CI에서 계약 검증 켜기
-- 백엔드가 compose `web` 서비스·Caddy 라우팅·개발 시드 명령을 넣은 뒤: `E2E_TARGET=go`·`compose`로 E2E 실행
+- 두 PR 병합 뒤 백엔드가 compose `web` 서비스·Caddy 라우팅·E2E override를 넣으면: `E2E_TARGET=compose`로 E2E 실행. `E2E_TARGET=go`는 백엔드 시드가 단계별로 늘어나는 대로
 - 실제 배포(도메인, Google OAuth 리디렉션 URI, 데이터 이관)
 
 ## 5. 작업 중 정한 사항·보류 항목

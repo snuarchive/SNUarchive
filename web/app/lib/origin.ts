@@ -11,6 +11,9 @@ export function normalizeOrigin(value: string): string {
   } catch {
     throw new Error(`"${value}" is not an origin`);
   }
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new Error(`"${value}" is not an http or https origin`);
+  }
   if (
     url.pathname !== "/" ||
     url.search ||
