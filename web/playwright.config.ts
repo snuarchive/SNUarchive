@@ -18,13 +18,14 @@ const mock = {
   timeout: 120_000,
 };
 const app = {
-  // The production build, run in development mode so dev login works.
+  // The production build, run in development mode for its defaults. Dev
+  // login is the API's to allow (the mock always does; Go needs
+  // DEV_LOGIN_ENABLED=true).
   command: "pnpm build && pnpm start",
   url: APP_ORIGIN,
   env: {
     PORT: String(APP_PORT),
     APP_ENV: "development",
-    DEV_LOGIN: "1",
     API_ORIGIN,
     APP_ORIGIN,
   },

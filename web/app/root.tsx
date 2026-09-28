@@ -82,7 +82,7 @@ export async function loader({ request, context }: Route.LoaderArgs) {
     config,
     showProfileBanner,
     toast: context.get(flashContext).take(),
-    devLogin: env.devLogin,
+    devLogin: config.devLoginEnabled,
   };
 }
 

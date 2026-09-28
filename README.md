@@ -29,7 +29,7 @@ cd web
 pnpm install
 pnpm --dir mock-api install
 pnpm --dir mock-api start                  # 목업 API, http://localhost:8787
-APP_ENV=development DEV_LOGIN=1 pnpm dev   # 앱, http://localhost:5173
+APP_ENV=development pnpm dev              # 앱, http://localhost:5173
 ```
 
 ## 이전 버전

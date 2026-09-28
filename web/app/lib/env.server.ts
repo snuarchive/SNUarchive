@@ -19,12 +19,8 @@ export const env = {
   apiOrigin: required("API_ORIGIN", "http://localhost:8787"),
   /** The public origin of this app; sent as Origin on unsafe API calls. */
   appOrigin: normalizeOrigin(required("APP_ORIGIN", "http://localhost:5173")),
-  /** Shows the email sign-in form that calls the API's dev-login. */
-  devLogin: process.env.DEV_LOGIN === "1",
   /** Signs this app's own cookies (flash messages). */
   webSecret: required("WEB_SESSION_SECRET", "dev-web-session-secret"),
 };
-
-if (env.devLogin && env.appEnv === "production") {
-  throw new Error("DEV_LOGIN=1 is not allowed when APP_ENV=production");
-}
+// Dev login is not configured here: the API says whether it takes it
+// (/config.devLoginEnabled, always false in production).
