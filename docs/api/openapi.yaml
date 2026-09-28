@@ -410,7 +410,7 @@ paths:
         Four sections of at most 10 each; any may be empty. A first-time user
         gets empty arrays, not an error.
 
-        - `favorites`: the first of the viewer's favourites in the user's
+        - `favorites`: the first 10 of the viewer's favourites in the user's
           order (full list at `/me/favorites`).
         - `votingOpen`: courses with an open sitting, soonest deadline first;
           open-ended voting sorts last.
@@ -1431,8 +1431,9 @@ paths:
         valid for 10 minutes. The delete must present the token.
 
         At least one filter field (`from`, `until`, `action`, `userId`) is
-        required; an empty filter is `422`. `from >= until` is
-        `422 VALIDATION_FAILED` with `WINDOW_INVERTED` on field `until`.
+        required; an empty filter is `422 VALIDATION_FAILED` with
+        `details.fields = [{ field: "", code: "REQUIRED" }]`. `from >= until`
+        is `422 VALIDATION_FAILED` with `WINDOW_INVERTED` on field `until`.
       security:
         - sessionCookie: []
           csrfToken: []
@@ -1470,7 +1471,9 @@ paths:
         count.
 
         At least one filter field (`from`, `until`, `action`, `userId`) is
-        required besides `token`; a body with only `token` is `422`.
+        required besides `token`; a body with only `token` is
+        `422 VALIDATION_FAILED` with
+        `details.fields = [{ field: "", code: "REQUIRED" }]`.
         `from >= until` is `422 VALIDATION_FAILED` with `WINDOW_INVERTED` on
         field `until`.
       security:

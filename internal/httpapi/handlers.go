@@ -106,7 +106,9 @@ func getConfig(d Deps) http.Handler {
 			writeError(w, r, d.Logger, err)
 			return
 		}
-		// changes only with a migration
+		// Doesn't change only with a migration: devLoginEnabled depends on
+		// the running environment (APP_ENV/DEV_LOGIN_ENABLED), not just the
+		// DB. 300s caching is still acceptable here.
 		w.Header().Set("Cache-Control", "public, max-age=300")
 		writeJSON(w, http.StatusOK, toConfigJSON(cfg, devLoginEnabled(d.Config)))
 	})

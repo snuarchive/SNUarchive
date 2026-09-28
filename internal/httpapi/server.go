@@ -16,7 +16,9 @@ import (
 
 const apiPrefix = "/api/v1"
 
-type Pinger interface{ Ping(ctx context.Context) error }
+type Pinger interface {
+	Ping(ctx context.Context) error
+}
 
 type ConfigSource interface {
 	Config(ctx context.Context) (refdata.Config, error)

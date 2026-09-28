@@ -23,18 +23,18 @@ func TestEveryCodeHasStatusAndMessage(t *testing.T) {
 
 func TestStatuses(t *testing.T) {
 	cases := map[apperr.Code]int{
-		apperr.MalformedRequest:      http.StatusBadRequest,
-		apperr.NotAuthenticated:      http.StatusUnauthorized,
-		apperr.CSRFInvalid:           http.StatusForbidden,
-		apperr.NotFound:              http.StatusNotFound,
-		apperr.MethodNotAllowed:      http.StatusMethodNotAllowed,
-		apperr.ValidationFailed:      http.StatusUnprocessableEntity,
-		apperr.ConfirmationRequired:  http.StatusPreconditionRequired,
-		apperr.VotingNotOpen:         http.StatusConflict,
-		apperr.FileTooLarge:          http.StatusRequestEntityTooLarge,
-		apperr.FileTypeRejected:      http.StatusUnsupportedMediaType,
-		apperr.ExportTooLarge:        http.StatusRequestEntityTooLarge,
-		apperr.Internal:              http.StatusInternalServerError,
+		apperr.MalformedRequest:     http.StatusBadRequest,
+		apperr.NotAuthenticated:     http.StatusUnauthorized,
+		apperr.CSRFInvalid:          http.StatusForbidden,
+		apperr.NotFound:             http.StatusNotFound,
+		apperr.MethodNotAllowed:     http.StatusMethodNotAllowed,
+		apperr.ValidationFailed:     http.StatusUnprocessableEntity,
+		apperr.ConfirmationRequired: http.StatusPreconditionRequired,
+		apperr.VotingNotOpen:        http.StatusConflict,
+		apperr.FileTooLarge:         http.StatusRequestEntityTooLarge,
+		apperr.FileTypeRejected:     http.StatusUnsupportedMediaType,
+		apperr.ExportTooLarge:       http.StatusRequestEntityTooLarge,
+		apperr.Internal:             http.StatusInternalServerError,
 	}
 	for code, want := range cases {
 		if got := apperr.New(code).Status(); got != want {
