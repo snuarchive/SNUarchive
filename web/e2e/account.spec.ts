@@ -1,9 +1,9 @@
 import { expect, test } from "@playwright/test";
 
-import { ACCOUNTS, expectToast, resetMock, signIn } from "./helpers";
+import { ACCOUNTS, expectToast, resetData, signIn } from "./helpers";
 
 test.beforeEach(async ({ request }) => {
-  await resetMock(request);
+  await resetData(request);
 });
 
 test("the profile banner saves and disappears", async ({ page }) => {

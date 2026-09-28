@@ -4,7 +4,7 @@ import {
   ACCOUNTS,
   expectToast,
   openCourse,
-  resetMock,
+  resetData,
   signIn,
 } from "./helpers";
 
@@ -12,7 +12,7 @@ import {
 const OPEN_COURSE = "미적분학 1";
 
 test.beforeEach(async ({ request, page }) => {
-  await resetMock(request);
+  await resetData(request);
   await signIn(page, ACCOUNTS.student);
 });
 

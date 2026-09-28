@@ -4,12 +4,12 @@ import {
   ACCOUNTS,
   expectToast,
   injectFault,
-  resetMock,
+  resetData,
   signIn,
 } from "./helpers";
 
 test.beforeEach(async ({ request, page }) => {
-  await resetMock(request);
+  await resetData(request);
   await signIn(page, ACCOUNTS.admin);
 });
 

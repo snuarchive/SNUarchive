@@ -1,10 +1,10 @@
 import { expect, test } from "@playwright/test";
 
-import { ACCOUNTS, resetMock, signIn } from "./helpers";
+import { ACCOUNTS, resetData, signIn } from "./helpers";
 import { APP_ORIGIN } from "./origins";
 
 test.beforeEach(async ({ request }) => {
-  await resetMock(request);
+  await resetData(request);
 });
 
 test("signed out, every page shows the sign-in screen with 401", async ({

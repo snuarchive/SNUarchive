@@ -1,6 +1,13 @@
-import { expect, type APIRequestContext, type Page } from "@playwright/test";
+import { execSync } from "node:child_process";
 
-import { MOCK_ORIGIN } from "./origins";
+import {
+  expect,
+  test,
+  type APIRequestContext,
+  type Page,
+} from "@playwright/test";
+
+import { MOCK_ORIGIN, RESET_CMD, TARGET } from "./origins";
 
 export const ACCOUNTS = {
   admin: "admin@snu.ac.kr",
@@ -8,17 +15,28 @@ export const ACCOUNTS = {
   newbie: "newbie@snu.ac.kr",
 } as const;
 
-/** Back to the mock's seed state; every spec starts from here. */
-export async function resetMock(request: APIRequestContext) {
-  const response = await request.post(`${MOCK_ORIGIN}/__mock/reset`);
-  expect(response.ok()).toBe(true);
+/**
+ * Back to the seed state; every spec starts from here. The mock resets over
+ * HTTP; a real backend through E2E_RESET_CMD (see origins.ts).
+ */
+export async function resetData(request: APIRequestContext) {
+  if (TARGET === "mock") {
+    const response = await request.post(`${MOCK_ORIGIN}/__mock/reset`);
+    expect(response.ok()).toBe(true);
+    return;
+  }
+  if (!RESET_CMD) {
+    throw new Error(`E2E_RESET_CMD must be set when E2E_TARGET=${TARGET}`);
+  }
+  execSync(RESET_CMD, { stdio: "inherit" });
 }
 
-/** Makes the next matching API request fail once. */
+/** Makes the next matching API request fail once. Mock only. */
 export async function injectFault(
   request: APIRequestContext,
   fault: { method: string; path: string; status: number; code: string },
 ) {
+  test.skip(TARGET !== "mock", "needs the mock's fault injection");
   const response = await request.post(`${MOCK_ORIGIN}/__mock/faults`, {
     data: fault,
   });

@@ -17,6 +17,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:e2e:go": "E2E_TARGET=go playwright test",
+    "test:e2e:compose": "E2E_TARGET=compose playwright test",
     "api:types": "node scripts/api-types.mjs"
   },
   "dependencies": {

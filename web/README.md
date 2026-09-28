@@ -59,3 +59,32 @@ pnpm --dir mock-api test   # 목업 응답의 계약 검증
 
 Playwright 브라우저를 내려받지 않고 설치된 Chromium을 쓰려면
 `PW_CHROMIUM_PATH=/usr/bin/chromium pnpm test:e2e`.
+
+CI(`.github/workflows/web.yml`)는 위 검사를 모두 돌린다. 계약 파일이 없으므로
+목업의 계약 검증만 건너뛴다(백엔드와 병합 뒤 링크를 저장소 안 경로로 바꾼다).
+
+## Go 백엔드로 E2E
+
+`E2E_TARGET`으로 E2E가 붙을 API를 고른다. 목업이 아니면 테스트마다 DB를
+백엔드 개발 시드로 되돌리는 명령을 `E2E_RESET_CMD`에 준다(백엔드에 요청해 둔
+시드 명령). 목업의 장애 주입이 필요한 테스트는 건너뛴다.
+
+| `E2E_TARGET` | Playwright가 띄우는 것 | 준비                                                                                                                                                                           |
+| ------------ | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `mock`(기본) | 목업, 앱               | 없음                                                                                                                                                                           |
+| `go`         | 앱(`:4173`)            | Postgres + `go run`으로 띄운 Go 서버(`E2E_API_ORIGIN`, 기본 `http://localhost:8080`). Go는 `APP_ENV=development`, `DEV_LOGIN_ENABLED=true`, `APP_ORIGIN=http://localhost:4173` |
+| `compose`    | 없음                   | 배포 compose 전체(Caddy 포함)를 개발 모드로 띄움. 주소 `E2E_BASE_URL`(기본 `http://localhost`)                                                                                 |
+
+```sh
+E2E_RESET_CMD='…시드 명령…' pnpm test:e2e:go
+E2E_RESET_CMD='…시드 명령…' pnpm test:e2e:compose
+```
+
+## 컨테이너
+
+`Dockerfile`은 `web/`을 컨텍스트로 프로덕션 이미지를 만든다(포트 3000, `node`
+사용자). 배포 compose와 Caddy 설정은 백엔드 `deploy/`가 맡는다.
+
+```sh
+docker build -t snuarchive/web:local .
+```

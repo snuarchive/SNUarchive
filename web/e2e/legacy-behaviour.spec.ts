@@ -4,7 +4,7 @@ import {
   ACCOUNTS,
   expectToast,
   openCourse,
-  resetMock,
+  resetData,
   signIn,
 } from "./helpers";
 
@@ -14,7 +14,7 @@ import {
 const COURSE = "미적분학 1";
 
 test.beforeEach(async ({ request }) => {
-  await resetMock(request);
+  await resetData(request);
 });
 
 test("a direct-report draft survives a reload and reopens the card", async ({
