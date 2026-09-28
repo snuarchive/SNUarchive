@@ -22,6 +22,9 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+    networks:
+      default:
+        ipv4_address: ${DB_IP:-172.30.0.4}
     restart: unless-stopped
 
   migrate:
@@ -29,6 +32,9 @@ services:
     command: ["migrate", "up"]
     environment:
       DATABASE_URL: *database-url
+    networks:
+      default:
+        ipv4_address: ${MIGRATE_IP:-172.30.0.6}
     depends_on:
       db:
         condition: service_healthy
@@ -42,8 +48,14 @@ services:
       HTTP_ADDR: ":8080"
       STORAGE_DRIVER: fs
       STORAGE_FS_ROOT: /data/uploads
-      # only Caddy and the React SSR server may set X-Forwarded-For / X-Request-ID
+      # only Caddy and the React SSR server are trusted to set X-Forwarded-For;
+      # Caddy always overwrites X-Request-ID with its own generated ID before
+      # forwarding (web will do the same once it exists), so Go only ever
+      # sees an ID one of these two made
       TRUSTED_PROXIES: ${CADDY_IP:-172.30.0.2}/32,${WEB_IP:-172.30.0.3}/32
+    networks:
+      default:
+        ipv4_address: ${APP_IP:-172.30.0.5}
     volumes:
       - uploads:/data/uploads
     depends_on:
@@ -85,9 +97,9 @@ networks:
     ipam:
       config:
         - subnet: ${COMPOSE_SUBNET:-172.30.0.0/24}
-          # dynamic addresses come only from this range, so they never take
-          # the fixed CADDY_IP / WEB_IP (which must lie outside it)
-          ip_range: ${COMPOSE_IP_RANGE:-172.30.0.128/25}
+          # every service below has a fixed ipv4_address, so Docker's dynamic
+          # allocation is never used and can never take an address this file
+          # assigns (CADDY_IP, WEB_IP, DB_IP, APP_IP, MIGRATE_IP)
 
 volumes:
   pgdata:

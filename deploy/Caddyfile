@@ -2,7 +2,11 @@
 	encode zstd gzip
 
 	handle /api/* {
-		reverse_proxy app:8080
+		# always replace any client-supplied X-Request-ID with one Caddy
+		# generates itself, so Go never trusts an ID a browser made up
+		reverse_proxy app:8080 {
+			header_up X-Request-ID {http.request.uuid}
+		}
 	}
 
 	# container health checks stay internal
