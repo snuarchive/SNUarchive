@@ -56,8 +56,9 @@ type DB struct {
 }
 
 type Session struct {
-	Keys [][]byte // first signs, all verify
-	TTL  time.Duration
+	Keys   [][]byte // first signs, all verify
+	TTL    time.Duration
+	MaxAge time.Duration // hard cap from sign-in; renewals never pass it
 }
 
 type Google struct {
@@ -151,8 +152,12 @@ func Load(lookup LookupFunc) (*Config, []string, error) {
 		PoolerMode: p.boolean("DB_POOLER_MODE", false),
 	}
 	c.Session = Session{
-		Keys: p.sessionKeys("SESSION_KEYS"),
-		TTL:  p.duration("SESSION_TTL", 168*time.Hour),
+		Keys:   p.sessionKeys("SESSION_KEYS"),
+		TTL:    p.duration("SESSION_TTL", 168*time.Hour),
+		MaxAge: p.duration("SESSION_MAX_AGE", 720*time.Hour),
+	}
+	if c.Session.MaxAge < c.Session.TTL {
+		p.fail("SESSION_MAX_AGE", "must not be shorter than SESSION_TTL")
 	}
 
 	c.DevLoginEnabled = p.boolean("DEV_LOGIN_ENABLED", false)

@@ -56,6 +56,7 @@ func TestDefaults(t *testing.T) {
 		{"db max conns", c.DB.MaxConns, int32(10)},
 		{"pooler", c.DB.PoolerMode, false},
 		{"session ttl", c.Session.TTL, 168 * time.Hour},
+		{"session max age", c.Session.MaxAge, 720 * time.Hour},
 		{"storage", c.Storage.Driver, "fs"},
 		{"fs root", c.Storage.FSRoot, "/data/uploads"},
 		{"upload max", c.Upload.MaxBytes, int64(3 << 20)},
@@ -120,6 +121,7 @@ func TestErrors(t *testing.T) {
 		{"bad proxy", with(minimal(), "TRUSTED_PROXIES", "nope"), `TRUSTED_PROXIES entry "nope" is not an IP address or CIDR`},
 		{"bad log level", with(minimal(), "LOG_LEVEL", "loud"), "LOG_LEVEL must be debug, info, warn or error"},
 		{"bad duration", with(minimal(), "SESSION_TTL", "-1h"), "SESSION_TTL must be a positive duration"},
+		{"max age below ttl", with(minimal(), "SESSION_TTL", "48h", "SESSION_MAX_AGE", "24h"), "SESSION_MAX_AGE must not be shorter than SESSION_TTL"},
 		{"bad env", with(minimal(), "APP_ENV", "staging"), "APP_ENV must be one of development, production"},
 	}
 	for _, tc := range cases {
