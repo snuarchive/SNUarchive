@@ -93,7 +93,8 @@ paths:
       summary: Begin Google sign-in
       description: |
         A browser navigation, not an XHR target. Sets a signed, short-lived
-        state cookie and redirects to Google with `hd=snu.ac.kr`.
+        state cookie (`snu_oauth`, path `/api/v1/auth/google`) and redirects to
+        Google with `hd=snu.ac.kr`, a PKCE (S256) challenge and a nonce.
 
         `next` is kept in the signed state cookie; after a successful callback
         the browser is sent there (still with `auth=ok` appended) instead of
@@ -128,8 +129,17 @@ paths:
         as a query parameter — any existing query string and fragment on
         `next` are preserved).
 
-        Failures redirect rather than render: `/?auth=forbidden` for a
-        non-SNU account, `/?auth=error` otherwise. The client owns the message.
+        Failures redirect rather than render: `/?auth=cancelled` when the user
+        declined on Google's page (`error=access_denied`), `/?auth=forbidden`
+        for an account that is not a verified `@snu.ac.kr` member of the
+        `snu.ac.kr` Workspace, `/?auth=error` otherwise. The client owns the
+        message.
+
+        Accounts are keyed by Google's subject id. When a school address has
+        been reissued, its new holder gets a new account; the previous holder
+        keeps theirs and gets their current address back at their next
+        sign-in. The display name is stored when the account is created and
+        not overwritten later.
       security: []
       parameters:
         - { name: code,  in: query, schema: { type: string } }
@@ -1819,9 +1829,12 @@ components:
       in: cookie
       name: snu_session
       description: |
-        HttpOnly, Secure, SameSite=Lax. HMAC-signed `{uid, exp, ep}`; the
-        server also checks the account is live and `ep` equals its session
-        epoch.
+        HttpOnly, SameSite=Lax, Secure when the app origin is https.
+        HMAC-signed `{uid, exp, ep, at}`; the server also checks the account
+        is live and `ep` equals its session epoch. Sliding: once less than half
+        of `SESSION_TTL` is left, a response carries a renewed cookie, never
+        lasting past `SESSION_MAX_AGE` from sign-in. A request with a cookie
+        that no longer works gets `401` and the cookies cleared.
     csrfToken:
       type: apiKey
       in: header
