@@ -188,14 +188,48 @@ func TestGoogleCallbackFailures(t *testing.T) {
 	}{
 		{"declined", "error=access_denied&state=" + realState, state, "/?auth=cancelled"},
 		{"provider error", "error=server_error&state=" + realState, state, "/?auth=error"},
-		{"state mismatch", "code=c&state=forged", state, "/?auth=error"},
-		{"no state cookie", "code=c&state=" + realState, nil, "/?auth=error"},
 		{"unknown code", "code=nope&state=" + realState, state, "/?auth=error"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			rec := e.spec.Do(t, e.srv, http.MethodGet, "/api/v1/auth/google/callback?"+tc.query, nil, header(tc.cookie))
 			if got := rec.Header().Get("Location"); rec.Code != http.StatusFound || got != appOrigin+tc.want {
+				t.Fatalf("%d %s", rec.Code, got)
+			}
+			if _, ok := cookies(rec)["snu_session"]; ok {
+				t.Fatal("a failed callback must not start a session")
+			}
+		})
+	}
+}
+
+// TestGoogleCallbackRejectsBadState covers the two cases that only the
+// state check itself can catch: a code is granted and exchangeable, with
+// the flow's real code_challenge and nonce, so a callback that skipped the
+// state check would sign the visitor in. Both must still end in
+// /?auth=error with no session cookie.
+func TestGoogleCallbackRejectsBadState(t *testing.T) {
+	e := newEnv(t)
+	start := e.spec.Do(t, e.srv, http.MethodGet, "/api/v1/auth/google", nil, nil)
+	state := cookies(start)["snu_oauth"]
+	loc, _ := url.Parse(start.Header().Get("Location"))
+	q := loc.Query()
+	realState := q.Get("state")
+
+	cases := []struct {
+		name, code, query string
+		cookie            *http.Cookie
+	}{
+		{"state mismatch", "good-code-1", "state=forged", state},
+		{"no state cookie", "good-code-2", "state=" + realState, nil},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			claims := kim
+			claims.Nonce = q.Get("nonce")
+			e.fake.Grant(tc.code, q.Get("code_challenge"), claims)
+			rec := e.spec.Do(t, e.srv, http.MethodGet, "/api/v1/auth/google/callback?code="+tc.code+"&"+tc.query, nil, header(tc.cookie))
+			if got := rec.Header().Get("Location"); rec.Code != http.StatusFound || got != appOrigin+"/?auth=error" {
 				t.Fatalf("%d %s", rec.Code, got)
 			}
 			if _, ok := cookies(rec)["snu_session"]; ok {
