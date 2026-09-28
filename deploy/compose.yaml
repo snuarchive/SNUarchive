@@ -42,7 +42,8 @@ services:
       HTTP_ADDR: ":8080"
       STORAGE_DRIVER: fs
       STORAGE_FS_ROOT: /data/uploads
-      TRUSTED_PROXIES: 172.30.0.0/24
+      # only Caddy and the React SSR server may set X-Forwarded-For / X-Request-ID
+      TRUSTED_PROXIES: ${CADDY_IP:-172.30.0.2}/32,${WEB_IP:-172.30.0.3}/32
     volumes:
       - uploads:/data/uploads
     depends_on:
@@ -66,16 +67,27 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
+    networks:
+      default:
+        ipv4_address: ${CADDY_IP:-172.30.0.2}
     depends_on:
       app:
         condition: service_healthy
     restart: unless-stopped
 
+  # web (React SSR, frontend phase) goes here with the reserved address:
+  #   networks:
+  #     default:
+  #       ipv4_address: ${WEB_IP:-172.30.0.3}
+
 networks:
   default:
     ipam:
       config:
-        - subnet: 172.30.0.0/24
+        - subnet: ${COMPOSE_SUBNET:-172.30.0.0/24}
+          # dynamic addresses come only from this range, so they never take
+          # the fixed CADDY_IP / WEB_IP (which must lie outside it)
+          ip_range: ${COMPOSE_IP_RANGE:-172.30.0.128/25}
 
 volumes:
   pgdata:
