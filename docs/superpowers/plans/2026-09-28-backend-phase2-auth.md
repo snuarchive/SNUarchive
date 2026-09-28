@@ -3141,14 +3141,6 @@ func TestSeedIsRepeatable(t *testing.T) {
 `cmd/snuarchive/main_test.go`의 `TestServeRejectsBadConfig` 앞에 추가:
 
 ```go
-	if code, _, _ := runCLI(ctx, lookup, "migrate", "up", "--yes"); code != 2 {
-		t.Fatalf("migrate up --yes: %d", code)
-	}
-	if code, _, _ := runCLI(ctx, lookup, "migrate", "status", "--yes"); code != 2 {
-		t.Fatalf("migrate status --yes: %d", code)
-	}
-}
-
 func TestDevSeed(t *testing.T) {
 	ctx := context.Background()
 	url := pgtest.NewDatabase(t)
