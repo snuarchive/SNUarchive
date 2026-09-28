@@ -68,11 +68,42 @@ func TestMapErrorFieldError(t *testing.T) {
 	if !ok || e.Status() != http.StatusUnprocessableEntity {
 		t.Fatalf("got %v", db.MapError(err))
 	}
-	if len(e.Fields) != 1 || e.Fields[0] != (apperr.FieldError{Field: "quartiles", Code: apperr.QuartilesOutOfOrder}) {
+	if len(e.Fields) != 1 || e.Fields[0] != (apperr.FieldError{Field: "", Code: apperr.QuartilesOutOfOrder}) {
 		t.Fatalf("fields = %+v", e.Fields)
 	}
 	if !errors.Is(db.MapError(err), err) {
 		t.Fatal("the database error must stay wrapped")
+	}
+}
+
+// Errors about the body as a whole, or several fields at once, carry field "".
+func TestMapErrorWholeBodyErrorsHaveEmptyField(t *testing.T) {
+	pool := pgtest.New(t)
+	f := seed(t, pool)
+	sitting, err := insertSitting(pool, f, "midterm", nil, 2026, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cases := []struct {
+		name string
+		sql  string
+		want apperr.FieldCode
+	}{
+		{"nothing submitted", `INSERT INTO stat_reports (sitting_id, contributor_id, source) VALUES ($1, $2, 'direct')`, apperr.NothingSubmitted},
+		{"negative value", `INSERT INTO stat_reports (sitting_id, q1, contributor_id, source) VALUES ($1, -1, $2, 'direct')`, apperr.ValueOutOfRange},
+		{"quartiles out of order", `INSERT INTO stat_reports (sitting_id, q1, q2, contributor_id, source) VALUES ($1, 50, 40, $2, 'direct')`, apperr.QuartilesOutOfOrder},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			_, err := pool.Exec(context.Background(), c.sql, sitting, f.userID)
+			e, ok := apperr.As(db.MapError(err))
+			if !ok {
+				t.Fatalf("got %v", db.MapError(err))
+			}
+			if len(e.Fields) != 1 || e.Fields[0] != (apperr.FieldError{Field: "", Code: c.want}) {
+				t.Fatalf("fields = %+v", e.Fields)
+			}
+		})
 	}
 }
 

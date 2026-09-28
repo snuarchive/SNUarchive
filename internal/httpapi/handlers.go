@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/snuarchive/snuarchive/internal/config"
 	"github.com/snuarchive/snuarchive/internal/refdata"
 )
 
@@ -62,9 +63,15 @@ type configJSON struct {
 	VotingRequest struct {
 		NoteMaxLength int `json:"noteMaxLength"`
 	} `json:"votingRequest"`
+	DevLoginEnabled bool `json:"devLoginEnabled"`
 }
 
-func toConfigJSON(c refdata.Config) configJSON {
+// devLoginEnabled reports whether POST /auth/dev-login exists; never in production.
+func devLoginEnabled(c *config.Config) bool {
+	return c.Env == config.Development && c.DevLoginEnabled
+}
+
+func toConfigJSON(c refdata.Config, devLogin bool) configJSON {
 	out := configJSON{
 		AssessmentKinds: make([]assessmentKindJSON, 0, len(c.Kinds)),
 		Colleges:        make([]collegeJSON, 0, len(c.Colleges)),
@@ -88,6 +95,7 @@ func toConfigJSON(c refdata.Config) configJSON {
 	out.Nickname.MaxLength = refdata.NicknameMaxLength
 	out.Nickname.Anonymous = refdata.Anonymous
 	out.VotingRequest.NoteMaxLength = refdata.VotingRequestNoteMaxLength
+	out.DevLoginEnabled = devLogin
 	return out
 }
 
@@ -100,6 +108,6 @@ func getConfig(d Deps) http.Handler {
 		}
 		// changes only with a migration
 		w.Header().Set("Cache-Control", "public, max-age=300")
-		writeJSON(w, http.StatusOK, toConfigJSON(cfg))
+		writeJSON(w, http.StatusOK, toConfigJSON(cfg, devLoginEnabled(d.Config)))
 	})
 }

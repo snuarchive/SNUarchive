@@ -11,7 +11,8 @@ import (
 
 // rule says what a constraint violation means to an API client: a field
 // error, a whole-request error code, or neither (an internal invariant that
-// application code should never trip; it stays a 500).
+// application code should never trip; it stays a 500). A field error whose
+// field is "" concerns the body as a whole or several fields at once.
 type rule struct {
 	field     string
 	fieldCode apperr.FieldCode
@@ -62,10 +63,10 @@ var constraintRules = map[string]rule{
 	"stat_reports_hidden_reason_ck": field("reason", apperr.TooLong),
 	"stat_reports_nickname_ck":      field("nickname", apperr.TooLong),
 	"stat_reports_note_ck":          field("note", apperr.TooLong),
-	"stat_reports_not_empty_ck":     field("statistic", apperr.NothingSubmitted),
-	"stat_reports_ordered_ck":       field("quartiles", apperr.QuartilesOutOfOrder),
+	"stat_reports_not_empty_ck":     field("", apperr.NothingSubmitted),
+	"stat_reports_ordered_ck":       field("", apperr.QuartilesOutOfOrder),
 	"stat_reports_within_max_ck":    field("maxScore", apperr.ValueAboveMaxScore),
-	"stat_reports_range_ck":         field("statistic", apperr.ValueOutOfRange),
+	"stat_reports_range_ck":         field("", apperr.ValueOutOfRange),
 	"stat_reports_provenance_ck":    internalInvariant,
 	"comments_body_ck":              field("body", apperr.TooLong),
 	"activity_logs_meta_ck":         internalInvariant,

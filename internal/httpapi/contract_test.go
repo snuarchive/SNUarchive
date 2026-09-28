@@ -129,3 +129,35 @@ func TestHealthEndpoints(t *testing.T) {
 		t.Fatalf("readyz with a dead database: %d", rec.Code)
 	}
 }
+
+type stubRefData struct{}
+
+func (stubRefData) Config(context.Context) (refdata.Config, error) { return refdata.Config{}, nil }
+
+func TestConfigReportsDevLogin(t *testing.T) {
+	spec := contract.Load(t)
+	cases := []struct {
+		name string
+		cfg  config.Config
+		want bool
+	}{
+		{"development with dev login", config.Config{Env: config.Development, DevLoginEnabled: true}, true},
+		{"development without dev login", config.Config{Env: config.Development}, false},
+		{"production never", config.Config{Env: config.Production, DevLoginEnabled: true}, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			srv := httpapi.New(httpapi.Deps{Config: &c.cfg, Logger: slog.New(slog.DiscardHandler), RefData: stubRefData{}})
+			rec := spec.Do(t, srv, http.MethodGet, "/api/v1/config", nil, nil)
+			var body struct {
+				DevLoginEnabled *bool `json:"devLoginEnabled"`
+			}
+			if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+				t.Fatal(err)
+			}
+			if body.DevLoginEnabled == nil || *body.DevLoginEnabled != c.want {
+				t.Fatalf("devLoginEnabled = %v, want %v; body %s", body.DevLoginEnabled, c.want, rec.Body.String())
+			}
+		})
+	}
+}

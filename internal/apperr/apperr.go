@@ -53,6 +53,7 @@ const (
 	InvalidEmail            FieldCode = "INVALID_EMAIL"
 	ClosesAtInPast          FieldCode = "CLOSES_AT_IN_PAST"
 	WindowInverted          FieldCode = "WINDOW_INVERTED"
+	InvalidFavoriteOrder    FieldCode = "INVALID_FAVORITE_ORDER"
 )
 
 type FieldError struct {
@@ -102,7 +103,7 @@ var codeOrder = []Code{
 var fieldCodeOrder = []FieldCode{
 	Required, TooLong, QuartilesOutOfOrder, ValueAboveMaxScore, ValueOutOfRange, NothingSubmitted,
 	UnknownAssessmentKind, InvalidAssessmentNumber, InvalidTerm, InvalidCollege, InvalidAdmissionYear,
-	InvalidEmail, ClosesAtInPast, WindowInverted,
+	InvalidEmail, ClosesAtInPast, WindowInverted, InvalidFavoriteOrder,
 }
 
 // AllCodes lists every error code.

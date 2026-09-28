@@ -83,7 +83,7 @@ func TestCodesAreUnique(t *testing.T) {
 		}
 		seen[c] = true
 	}
-	if len(apperr.AllCodes()) != 23 || len(apperr.AllFieldCodes()) != 14 {
+	if len(apperr.AllCodes()) != 23 || len(apperr.AllFieldCodes()) != 15 {
 		t.Fatalf("got %d codes and %d field codes", len(apperr.AllCodes()), len(apperr.AllFieldCodes()))
 	}
 }

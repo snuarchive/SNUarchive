@@ -1915,6 +1915,7 @@ components:
             - INVALID_EMAIL
             - CLOSES_AT_IN_PAST
             - WINDOW_INVERTED
+            - INVALID_FAVORITE_ORDER      # ids is not exactly the caller's favourite set
 
     # ------------------------------------------------------ reference data
 
@@ -1943,8 +1944,15 @@ components:
 
     Config:
       type: object
-      required: [assessmentKinds, colleges, semesters, upload, comment, nickname, votingRequest]
+      required: [assessmentKinds, colleges, semesters, upload, comment, nickname, votingRequest, devLoginEnabled]
       properties:
+        devLoginEnabled:
+          type: boolean
+          description: |
+            True only when `APP_ENV=development` and `DEV_LOGIN_ENABLED=true`,
+            that is, when `POST /auth/dev-login` exists. Always false in
+            production. The client shows its development sign-in form only
+            when this is true.
         assessmentKinds:
           type: array
           items: { $ref: '#/components/schemas/AssessmentKind' }
