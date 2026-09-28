@@ -21,10 +21,28 @@ function secure(ctx: Ctx): boolean {
   return ctx.options.appOrigin.startsWith("https:");
 }
 
+function cookieAttributes(ctx: Ctx) {
+  return {
+    path: "/",
+    sameSite: "Lax" as const,
+    secure: secure(ctx),
+    maxAge: Math.floor(ctx.options.sessionTtlMs / 1000),
+  };
+}
+
+/** Sets a fresh, readable `snu_csrf` cookie. */
+function issueCsrfCookie(c: Context<Env>, ctx: Ctx): void {
+  setCookie(
+    c,
+    CSRF_COOKIE,
+    randomBytes(18).toString("base64url"),
+    cookieAttributes(ctx),
+  );
+}
+
 /** Creates a session for the user and sets both cookies. */
 export function startSession(c: Context<Env>, ctx: Ctx, user: UserRow): void {
   const token = randomBytes(24).toString("base64url");
-  const maxAge = Math.floor(ctx.options.sessionTtlMs / 1000);
   ctx.sessions.set(token, {
     token,
     userId: user.id,
@@ -32,14 +50,19 @@ export function startSession(c: Context<Env>, ctx: Ctx, user: UserRow): void {
     epoch: user.sessionEpoch,
     expiresAt: ctx.now() + ctx.options.sessionTtlMs,
   });
-  const base = {
-    path: "/",
-    sameSite: "Lax" as const,
-    secure: secure(ctx),
-    maxAge,
-  };
-  setCookie(c, SESSION_COOKIE, token, { ...base, httpOnly: true });
-  setCookie(c, CSRF_COOKIE, randomBytes(18).toString("base64url"), base);
+  setCookie(c, SESSION_COOKIE, token, {
+    ...cookieAttributes(ctx),
+    httpOnly: true,
+  });
+  issueCsrfCookie(c, ctx);
+}
+
+/**
+ * `GET /me` re-issues `snu_csrf` when a valid session has lost it, with the
+ * same attributes as at sign-in. An existing cookie is left alone.
+ */
+export function ensureCsrfCookie(c: Context<Env>, ctx: Ctx): void {
+  if (!getCookie(c, CSRF_COOKIE)) issueCsrfCookie(c, ctx);
 }
 
 export function clearSessionCookies(c: Context<Env>, ctx: Ctx): void {
@@ -123,7 +146,10 @@ export function me(c: Context<Env>): UserRow {
   return user;
 }
 
-/** `POST /auth/dev-login` checks only Origin: there is no session, so no CSRF token. */
+/**
+ * `POST /auth/dev-login` and `POST /auth/logout` check only Origin: the first
+ * has no session yet, and the worst a forged logout can do is sign out.
+ */
 export function checkOrigin(c: Context<Env>, ctx: Ctx): void {
   if (c.req.header("origin") !== ctx.options.appOrigin) throw csrfInvalid();
 }

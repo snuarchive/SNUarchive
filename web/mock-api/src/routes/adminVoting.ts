@@ -99,6 +99,8 @@ export function adminVotingRoutes(ctx: Ctx) {
       }
       fe.throwIfAny();
       const { sitting, created } = getOrCreateSitting(ctx, course.id, key!);
+      // Either way it now stays on the course page, even while empty.
+      sitting.adminCreated = true;
       if (created)
         log(
           ctx,

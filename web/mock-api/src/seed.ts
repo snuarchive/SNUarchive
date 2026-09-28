@@ -407,8 +407,11 @@ export function seedState(ctx: Ctx): State {
     number: number | null,
     t: Term,
     createdAt: number,
-    voting: Partial<
-      Pick<SittingRow, "votingOpenedAt" | "votingClosesAt" | "votingEndedAt">
+    extra: Partial<
+      Pick<
+        SittingRow,
+        "votingOpenedAt" | "votingClosesAt" | "votingEndedAt" | "adminCreated"
+      >
     > = {},
   ): SittingRow => {
     const s: SittingRow = {
@@ -421,8 +424,9 @@ export function seedState(ctx: Ctx): State {
       votingOpenedAt: null,
       votingClosesAt: null,
       votingEndedAt: null,
+      adminCreated: false,
       createdAt,
-      ...voting,
+      ...extra,
     };
     state.sittings.push(s);
     if (s.votingOpenedAt !== null) {
@@ -479,7 +483,11 @@ export function seedState(ctx: Ctx): State {
     votingClosesAt: now + 20 * HOUR,
   });
   const s11 = sitting(C3, KIND.final, null, R1, r1Start + 70 * DAY_MS);
-  const s12 = sitting(C3, KIND.midterm, null, T, ago(5));
+  // Never opened, and students request voting on it. An admin created it, so
+  // it stays on the course page even if every request goes away.
+  const s12 = sitting(C3, KIND.midterm, null, T, ago(5), {
+    adminCreated: true,
+  });
   const s13 = sitting(C4, KIND.midterm, null, R2, r2Start + 3 * DAY_MS, {
     votingOpenedAt: r2Start + 4 * DAY_MS,
     votingClosesAt: r2Start + 14 * DAY_MS,
@@ -493,7 +501,8 @@ export function seedState(ctx: Ctx): State {
   const s20 = sitting(C11, KIND.assignment, 1, T, ago(7));
   // C9 is left without sittings: an empty course page.
 
-  for (const s of state.sittings) {
+  // The others were created by the statistic, request or upload in them.
+  for (const s of state.sittings.filter((x) => x.adminCreated)) {
     addLog(admin.id, "sitting_create", s.createdAt, {
       sittingId: s.id,
       courseId: s.courseId,

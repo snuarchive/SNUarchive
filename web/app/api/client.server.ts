@@ -68,7 +68,8 @@ export class ApiSession {
 
   private middleware(): Middleware {
     return {
-      onRequest: ({ request }) => {
+      onRequest: async ({ request }) => {
+        if (UNSAFE.has(request.method)) await this.ensureCsrf();
         const cookie = [...this.jar].map(([k, v]) => `${k}=${v}`).join("; ");
         if (cookie) request.headers.set("Cookie", cookie);
         if (this.forwardedFor) {
@@ -90,6 +91,25 @@ export class ApiSession {
         return response;
       },
     };
+  }
+
+  private csrfRefresh: Promise<void> | null = null;
+
+  /**
+   * A signed-in browser can lose snu_csrf alone (cleared cookies, an old
+   * tab). GET /me reissues it for a valid session, so an unsafe call fetches
+   * it first rather than failing with CSRF_INVALID; the new cookie also
+   * reaches the browser with the other Set-Cookie headers.
+   */
+  private ensureCsrf(): Promise<void> {
+    if (!this.jar.has("snu_session") || this.jar.has("snu_csrf")) {
+      return Promise.resolve();
+    }
+    this.csrfRefresh ??= this.client.GET("/me").then(
+      () => undefined,
+      () => undefined,
+    );
+    return this.csrfRefresh;
   }
 
   private remember(setCookie: string) {

@@ -98,7 +98,12 @@ curl -b jar.txt -X PATCH http://localhost:8787/api/v1/me \
 The checks run in this order: session (401), CSRF and Origin (403
 `CSRF_INVALID`), then admin rights (403 `ADMIN_REQUIRED`).
 
-`POST /auth/logout` ends this session. `POST /me/logout-all`, `DELETE /me`
+If `snu_csrf` is lost while the session is still valid, `GET /me` sets a new
+one with the sign-in attributes; an existing cookie is left alone.
+
+`POST /auth/logout` ends this session. It checks only `Origin` and needs no
+session or CSRF token: it always answers 204 and clears both cookies, even
+with an expired or invalid session. `POST /me/logout-all`, `DELETE /me`
 and revoking a database admin end every session of that user.
 
 ## Mock-only endpoints
@@ -150,7 +155,9 @@ previous year's 4.
   - Open for voting: one closing in 3 days, one closing within 24 hours, and
     one open-ended.
   - Closed: some by an admin, some by a passed deadline.
-  - Never opened: several, with open voting requests.
+  - Never opened: several, with open voting requests. The one on 선형대수학
+    is admin-created, so it stays on the course page even if its requests
+    are rejected or cancelled.
 - **Votes and statistics:** 107 votes with spread distributions, and 22
   statistics, including partial and note-only rows, one hidden row and one
   transcribed row.
@@ -186,6 +193,19 @@ mock decides as follows:
 - **Comment bylines** follow the contract (`김철수` → `김*수`, `남궁민수` →
   `남**수`, `김수` → `김*`). An account with no display name is masked from its
   email local part, which the contract does not cover.
+- **Empty sittings.** `GET /courses/{courseId}` leaves out a sitting with no
+  statistics (hidden ones count), no votes, no open voting request and voting
+  not open, unless an admin created it through
+  `POST /admin/courses/{courseId}/sittings` (also on an existing sitting).
+  Nothing is deleted: the sitting shows again once any of those holds, and
+  `GET /admin/sittings` always lists it. An upload creates its sitting only
+  when approved.
+- **Optional text.** A blank voting-request `note` or hide `reason` is stored
+  as null; lengths count code points after trimming. A comment body is
+  trimmed and its whitespace runs collapsed before it is stored and counted.
+- **Log delete.** The preview token also records the highest log id; the
+  delete counts and removes only matching entries at or below it, so entries
+  written after the preview are left alone.
 - **Favourites order.** `PUT /me/favorites/order` stores positions; a new pin
   goes in front of all of them. `DELETE /me` deletes the favourites and leaves
   open voting requests open.

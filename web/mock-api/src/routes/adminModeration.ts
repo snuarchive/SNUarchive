@@ -13,6 +13,7 @@ import {
   completeFigures,
   int,
   optionalIdQuery,
+  optionalText,
   paginate,
   pathId,
   readFigures,
@@ -276,12 +277,14 @@ export function adminModerationRoutes(ctx: Ctx) {
       const stat = requireStatistic(pathId(c, "statisticId"));
       const body = await readJson(c, ["hidden", "reason"]);
       const hidden = bool(body, "hidden");
-      if (hidden === undefined) throw malformed("hidden이 필요합니다.");
-      const reason = str(body, "reason", { nullable: true })?.trim() || null;
+      const fe = new FieldErrors();
+      if (hidden === undefined) fe.add("hidden", "REQUIRED");
+      // Blank is stored as null; the reason is ignored when showing again.
+      const reason = hidden
+        ? optionalText(body, "reason", LIMITS.hiddenReasonMaxLength, fe)
+        : null;
+      fe.throwIfAny();
       if (hidden) {
-        const fe = new FieldErrors();
-        checkMaxLength(reason, LIMITS.hiddenReasonMaxLength, "reason", fe);
-        fe.throwIfAny();
         stat.hiddenAt = stat.hiddenAt ?? ctx.now();
         stat.hiddenReason = reason;
       } else {

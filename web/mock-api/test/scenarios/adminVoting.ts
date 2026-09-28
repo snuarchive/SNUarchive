@@ -46,6 +46,28 @@ export function adminVotingScenarios(h: H) {
       expect(fields(past)).toEqual([
         { field: "openVoting.closesAt", code: "CLOSES_AT_IN_PAST" },
       ]);
+      // Unknown members are refused at every depth, and the nested object
+      // must be an object.
+      for (const openVoting of [
+        { closesAt: null, closesat: null },
+        { closes_at: null },
+        null,
+        [],
+      ]) {
+        const res = await admin.post(url, {
+          json: { ...key, number: 4, openVoting },
+        });
+        expect([openVoting, res.status]).toEqual([openVoting, 400]);
+        expect(res.json.error.code).toBe("MALFORMED_REQUEST");
+      }
+      // `closesAt` is required inside `openVoting`.
+      expect(
+        fields(
+          await admin.post(url, {
+            json: { ...key, number: 4, openVoting: {} },
+          }),
+        ),
+      ).toEqual([{ field: "openVoting.closesAt", code: "REQUIRED" }]);
       expect(
         (
           await admin.post(`/admin/courses/${UNKNOWN_ID}/sittings`, {

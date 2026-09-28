@@ -185,6 +185,54 @@ export function sessionScenarios(h: H) {
       ).toBe(false);
     });
 
+    it("getMe re-issues a lost CSRF cookie and leaves an existing one", async () => {
+      const c = await h.student();
+      const token = c.csrfToken!;
+      const kept = await c.get("/me");
+      expect(kept.status).toBe(200);
+      expect(kept.headers.getSetCookie()).toEqual([]);
+      expect(c.csrfToken).toBe(token);
+
+      c.jar.delete("snu_csrf");
+      // Without the cookie, writes fail until /me is loaded again.
+      expect(
+        (await c.patch("/me", { json: { admissionYear: 2023 } })).status,
+      ).toBe(403);
+      const reissued = await c.get("/me");
+      expect(reissued.status).toBe(200);
+      const cookies = reissued.headers.getSetCookie();
+      expect(cookies).toHaveLength(1);
+      const [csrf] = cookies;
+      // The attributes of sign-in: readable, Lax, whole site, same lifetime.
+      expect(csrf).toMatch(/^snu_csrf=/);
+      expect(csrf).not.toMatch(/HttpOnly/i);
+      expect(csrf).toMatch(/SameSite=Lax/i);
+      expect(csrf).toMatch(/Path=\//);
+      const signIn = (
+        await h.client().post("/auth/dev-login", {
+          json: { email: SEED_ACCOUNTS.student },
+        })
+      ).headers
+        .getSetCookie()
+        .find((x) => x.startsWith("snu_csrf="))!;
+      const attrs = (x: string) =>
+        x
+          .split(";")
+          .slice(1)
+          .map((a) => a.trim());
+      expect(attrs(csrf)).toEqual(attrs(signIn));
+      expect(c.csrfToken).toEqual(expect.any(String));
+      expect(c.csrfToken).not.toBe(token);
+      expect(
+        (await c.patch("/me", { json: { admissionYear: 2023 } })).status,
+      ).toBe(200);
+
+      // No session: 401 and no cookie.
+      const anon = await h.client().get("/me");
+      expect(anon.status).toBe(401);
+      expect(anon.headers.getSetCookie()).toEqual([]);
+    });
+
     it("getMe needs a session", async () => {
       const res = await h.client().get("/me");
       expect(res.status).toBe(401);
@@ -206,9 +254,24 @@ export function sessionScenarios(h: H) {
         admissionYear: 2026,
       });
       expect((await c.get("/me")).json.college).toBe("공과대학");
-      expect(
-        (await c.patch("/me", { json: { college: null } })).json.college,
-      ).toBeNull();
+      // null clears; an absent field is left unchanged.
+      const clearedCollege = await c.patch("/me", { json: { college: null } });
+      expect(clearedCollege.json).toMatchObject({
+        college: null,
+        admissionYear: 2026,
+      });
+      const yearOnly = await c.patch("/me", { json: { admissionYear: null } });
+      expect(yearOnly.json).toMatchObject({
+        college: null,
+        admissionYear: null,
+      });
+      const collegeOnly = await c.patch("/me", {
+        json: { college: "공과대학" },
+      });
+      expect(collegeOnly.json).toMatchObject({
+        college: "공과대학",
+        admissionYear: null,
+      });
 
       const bad = await c.patch("/me", {
         json: { college: "호그와트", admissionYear: 1970 },
@@ -257,7 +320,52 @@ export function sessionScenarios(h: H) {
       for (const [k, v] of stolen) replay.jar.set(k, v);
       expect((await replay.get("/me")).status).toBe(401);
       expect((await b.get("/me")).status).toBe(200);
-      expect((await h.client().post("/auth/logout")).status).toBe(401);
+    });
+
+    it("logout needs no session or CSRF token, only Origin", async () => {
+      const cleared = (res: { headers: Headers }) =>
+        res.headers
+          .getSetCookie()
+          .filter((x) => /max-age=0/i.test(x))
+          .map((x) => x.split("=")[0])
+          .sort();
+      // No session at all: still 204, and both cookies are cleared.
+      const anonymous = await h.client().post("/auth/logout");
+      expect(anonymous.status).toBe(204);
+      expect(cleared(anonymous)).toEqual(["snu_csrf", "snu_session"]);
+
+      // A signed-in session without the token.
+      const c = await h.student();
+      const noToken = await c.post("/auth/logout", { csrf: false });
+      expect(noToken.status).toBe(204);
+      expect(c.jar.size).toBe(0);
+
+      // A session that is no longer valid, and one that never was.
+      const ended = await h.student();
+      const stale = new Map(ended.jar);
+      await ended.post("/me/logout-all");
+      const replay = h.client();
+      for (const [k, v] of stale) replay.jar.set(k, v);
+      const expired = await replay.post("/auth/logout");
+      expect(expired.status).toBe(204);
+      expect(replay.jar.size).toBe(0);
+      const garbage = h.client();
+      garbage.jar.set("snu_session", "nope");
+      garbage.jar.set("snu_csrf", "nope");
+      expect((await garbage.post("/auth/logout")).status).toBe(204);
+      expect(garbage.jar.size).toBe(0);
+
+      // Origin is still checked, with or without a session.
+      for (const origin of [null, "https://evil.example"]) {
+        const signedIn = await h.student();
+        const res = await signedIn.post("/auth/logout", { origin });
+        expect(res.status).toBe(403);
+        expect(res.json.error.code).toBe("CSRF_INVALID");
+        // Nothing was cleared: the session still works.
+        expect((await signedIn.get("/me")).status).toBe(200);
+        const anon = await h.client().post("/auth/logout", { origin });
+        expect(anon.status).toBe(403);
+      }
     });
 
     it("logoutAll ends every session of the user", async () => {

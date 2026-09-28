@@ -177,6 +177,15 @@ export function adminModerationScenarios(h: H) {
           }),
         ),
       ).toEqual([{ field: "number", code: "INVALID_ASSESSMENT_NUMBER" }]);
+      // The override is flat: an unknown or nested field is malformed.
+      for (const json of [
+        { sitting: { kindId: KIND.quiz }, average: 1 },
+        { kindID: KIND.quiz, average: 1 },
+      ])
+        expect(
+          (await admin.post(`/admin/reports/${report.id}/approve`, { json }))
+            .status,
+        ).toBe(400);
       const override = await admin.post(`/admin/reports/${report.id}/approve`, {
         json: { kindId: KIND.quiz, number: 5, average: 7, maxScore: 10 },
       });
@@ -226,6 +235,32 @@ export function adminModerationScenarios(h: H) {
       expect(cleared.json.sitting).toMatchObject({
         label: "중간",
         number: null,
+      });
+
+      // Only the fields present override; the rest of the claim is kept.
+      const partial = new FormData();
+      partial.append("file", new Blob([barChartPng([1, 2])]), "q.png");
+      for (const [k, v] of Object.entries({
+        kindId: String(KIND.quiz),
+        number: "2",
+        year: "2026",
+        semester: "3",
+      }))
+        partial.append(k, v);
+      const claimed = (
+        await (
+          await h.student()
+        ).post(`/courses/${r.course.id}/reports`, { form: partial })
+      ).json;
+      const yearOnly = await admin.post(
+        `/admin/reports/${claimed.id}/approve`,
+        { json: { year: 2025, average: 1 } },
+      );
+      expect(yearOnly.status).toBe(201);
+      expect(yearOnly.json.sitting).toMatchObject({
+        kindId: KIND.quiz,
+        number: 2,
+        term: { year: 2025, semester: 3 },
       });
 
       const pending = r.pendingReport;
@@ -353,6 +388,27 @@ export function adminModerationScenarios(h: H) {
       });
       const cleared = await admin.patch(url, { json: { q1: null } });
       expect(cleared.json.q1).toBeNull();
+      // An absent field is left unchanged; null clears it.
+      const noted = await admin.patch(url, { json: { note: "분반 기준" } });
+      expect(noted.json).toMatchObject({
+        note: "분반 기준",
+        average: 44.5,
+        q1: null,
+        nickname: "정정됨",
+      });
+      const kept = await admin.patch(url, { json: { average: 45 } });
+      expect(kept.json).toMatchObject({
+        note: "분반 기준",
+        average: 45,
+        nickname: "정정됨",
+      });
+      // A null or blank nickname becomes the anonymous one.
+      expect(
+        (await admin.patch(url, { json: { nickname: null } })).json.nickname,
+      ).toBe("(익명)");
+      expect(
+        (await admin.patch(url, { json: { nickname: "  " } })).json.nickname,
+      ).toBe("(익명)");
       expect(fields(await admin.patch(url, { json: { q4: 1 } }))).toEqual([
         { field: "", code: "QUARTILES_OUT_OF_ORDER" },
       ]);
@@ -466,6 +522,20 @@ export function adminModerationScenarios(h: H) {
           }),
         ),
       ).toEqual([{ field: "reason", code: "TOO_LONG" }]);
+      // A missing or null `hidden` is a missing required field.
+      for (const json of [{}, { hidden: null }, { reason: "x" }])
+        expect(
+          fields(
+            await admin.put(`/admin/statistics/${st.id}/hidden`, { json }),
+          ),
+        ).toEqual([{ field: "hidden", code: "REQUIRED" }]);
+      expect(
+        (
+          await admin.put(`/admin/statistics/${st.id}/hidden`, {
+            json: { hidden: "yes" },
+          })
+        ).status,
+      ).toBe(400);
       expect(
         (
           await admin.put(`/admin/statistics/${UNKNOWN_ID}/hidden`, {
@@ -488,6 +558,40 @@ export function adminModerationScenarios(h: H) {
           })
         ).status,
       ).toBe(401);
+    });
+
+    it("adminSetStatisticHidden stores a blank reason as null and trims the rest", async () => {
+      const r = refs(h.mock);
+      const admin = await h.admin();
+      const url = `/admin/statistics/${r.visibleStatistic.id}/hidden`;
+      const cases: [string | null | undefined, string | null][] = [
+        ["", null],
+        ["   ", null],
+        ["\n\t", null],
+        [null, null],
+        [undefined, null],
+        // Length counts after trimming, so this is exactly the limit.
+        [` ${"가".repeat(500)} `, "가".repeat(500)],
+        ["  중복 제보 ", "중복 제보"],
+      ];
+      for (const [reason, stored] of cases) {
+        const res = await admin.put(url, {
+          json:
+            reason === undefined ? { hidden: true } : { hidden: true, reason },
+        });
+        expect([reason, res.status]).toEqual([reason, 200]);
+        expect(res.json).toMatchObject({
+          hiddenReason: stored,
+          hiddenAt: expect.any(String),
+        });
+        await admin.put(url, { json: { hidden: false } });
+      }
+      // Ignored when showing again, however long.
+      const shown = await admin.put(url, {
+        json: { hidden: false, reason: "가".repeat(501) },
+      });
+      expect(shown.status).toBe(200);
+      expect(shown.json.hiddenReason).toBeNull();
     });
 
     it("adminListComments and adminDeleteComment moderate comments", async () => {

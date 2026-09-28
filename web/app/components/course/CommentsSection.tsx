@@ -3,7 +3,7 @@ import { Form, Link, useLocation } from "react-router";
 
 import type { Schemas } from "~/api/types";
 import { cx } from "~/lib/cx";
-import { codePointLength, formatDate } from "~/lib/format";
+import { cleanComment, codePointLength, formatDate } from "~/lib/format";
 import { useFailure, useResetOnSuccess } from "~/lib/forms";
 import { useHydrated } from "~/lib/hydrated";
 import { usePagedList } from "~/lib/usePagedList";
@@ -32,7 +32,8 @@ export function CommentsSection({
   useResetOnSuccess(form, "comment");
 
   // Legacy rule: counted in code points, submit disabled when empty or over
-  // the limit. Without JavaScript the server enforces it.
+  // the limit. The count is of the text as the API stores it (trimmed,
+  // whitespace collapsed). Without JavaScript the server enforces it.
   const blocked = hydrated && (length === 0 || length > maxLength);
 
   return (
@@ -63,7 +64,7 @@ export function CommentsSection({
           aria-label="한줄 후기"
           required
           onChange={(event) =>
-            setLength(codePointLength(event.currentTarget.value))
+            setLength(codePointLength(cleanComment(event.currentTarget.value)))
           }
         />
         <span className={s.counter}>

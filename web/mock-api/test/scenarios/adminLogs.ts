@@ -200,14 +200,26 @@ export function adminLogScenarios(h: H) {
           })
         ).status,
       ).toBe(409);
-      await h.admin(); // another login changes the count
+      // Deleting some of the previewed entries changes the count within the
+      // bound, so the older token no longer matches.
+      const p3 = (
+        await admin.post("/admin/logs/delete-preview", {
+          json: { action: ["login"], userId: r.newbie.id },
+        })
+      ).json;
+      expect(p3.count).toBeGreaterThan(0);
       expect(
         (
           await admin.post("/admin/logs/delete", {
-            json: { action: ["login"], token: p2.token },
+            json: { action: ["login"], userId: r.newbie.id, token: p3.token },
           })
         ).status,
-      ).toBe(409);
+      ).toBe(200);
+      const stale = await admin.post("/admin/logs/delete", {
+        json: { action: ["login"], token: p2.token },
+      });
+      expect(stale.status).toBe(409);
+      expect(stale.json.error.code).toBe("DELETE_PREVIEW_MISMATCH");
 
       expect(
         fields(await admin.post("/admin/logs/delete-preview", { json: {} })),
@@ -266,6 +278,38 @@ export function adminLogScenarios(h: H) {
             .post("/admin/logs/delete", { json: { ...filter, token: "x" } })
         ).status,
       ).toBe(401);
+    });
+
+    it("adminDeleteLogs ignores entries written after the preview", async () => {
+      const admin = await h.admin();
+      const filter = { action: ["login"] };
+      const logins = () =>
+        h.mock.ctx.state.logs.filter((l) => l.action === "login");
+      const preview = (
+        await admin.post("/admin/logs/delete-preview", { json: filter })
+      ).json;
+      expect(preview.count).toBe(logins().length);
+      const bound = Math.max(...h.mock.ctx.state.logs.map((l) => l.id));
+
+      // More logins arrive between the preview and the delete. Without the
+      // bound, a filter with no `until` could never be deleted.
+      await h.student();
+      await h.admin();
+      const later = logins().filter((l) => l.id > bound);
+      expect(later).toHaveLength(2);
+
+      const del = await admin.post("/admin/logs/delete", {
+        json: { ...filter, token: preview.token },
+      });
+      expect(del.status).toBe(200);
+      expect(del.json.deleted).toBe(preview.count);
+      // The later ones are kept.
+      expect(logins().map((l) => l.id)).toEqual(later.map((l) => l.id));
+      const entry = h.mock.ctx.state.logs.at(-1)!;
+      expect(entry).toMatchObject({
+        action: "logs_delete",
+        metadata: { maxId: bound, deleted: preview.count },
+      });
     });
 
     it("adminListArchiveRuns lists runs newest first", async () => {

@@ -4,8 +4,8 @@ import { apiContext } from "~/api/client.server";
 import type { Route } from "./+types/logout";
 
 export async function action({ context }: Route.ActionArgs) {
-  // The API answers with cookie-clearing Set-Cookie headers, which the root
-  // middleware passes on. A stale session (401) is signed out all the same.
+  // The API always answers 204 with cookie-clearing Set-Cookie headers, even
+  // for a missing or broken session, and the root middleware passes them on.
   await context.get(apiContext).client.POST("/auth/logout");
   return redirect("/");
 }

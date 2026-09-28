@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { normalize } from "../../src/catalog";
+import { barChartPng } from "../../src/files";
+import { KIND } from "../../src/refdata";
+import type { Client } from "../client";
 import type { H } from "../harness";
 import { refs, SEED_ACCOUNTS, UNKNOWN_ID } from "../harness";
 
@@ -208,6 +211,217 @@ export function catalogScenarios(h: H) {
       ).json;
       expect(empty.sittings).toEqual([]);
       expect(empty.comments).toEqual({ items: [], nextCursor: null });
+    });
+
+    describe("getCourse leaves out empty sittings", () => {
+      const listed = async (c: Client, courseId: number) =>
+        (await c.get(`/courses/${courseId}`)).json.sittings.map(
+          (s: { id: number }) => s.id,
+        ) as number[];
+      const adminListed = async (c: Client, courseId: number) =>
+        (
+          await c.get(
+            `/admin/sittings?votingState=any&courseId=${courseId}&limit=50`,
+          )
+        ).json.items.map((s: { id: number }) => s.id) as number[];
+
+      it("hides a sitting whose requests went away and shows it again when used", async () => {
+        const r = refs(h.mock);
+        const courseId = r.emptyCourse.id;
+        const student = await h.student();
+        const admin = await h.admin();
+        const key = { kindId: KIND.midterm, year: 2026, semester: 3 };
+        const url = `/courses/${courseId}/voting-requests`;
+
+        const req = (await student.post(url, { json: key })).json;
+        const id: number = req.sitting.id;
+        expect(await listed(student, courseId)).toEqual([id]);
+
+        // Cancelled: empty, so left out, but never deleted.
+        await student.del(`/voting-requests/${req.id}`);
+        expect(await listed(student, courseId)).toEqual([]);
+        expect(await adminListed(admin, courseId)).toEqual([id]);
+        expect(h.mock.ctx.state.sittings.some((s) => s.id === id)).toBe(true);
+
+        // Requested again: back. Rejected: gone again.
+        expect((await student.post(url, { json: key })).status).toBe(201);
+        expect(await listed(student, courseId)).toEqual([id]);
+        await admin.post(`/admin/voting-requests/${id}/reject`, { json: {} });
+        expect(await listed(student, courseId)).toEqual([]);
+
+        // Open voting alone is enough; closed with no votes is empty again.
+        await admin.post(`/admin/sittings/${id}/voting`, {
+          json: { closesAt: null },
+        });
+        expect(await listed(student, courseId)).toEqual([id]);
+        await admin.post(`/admin/sittings/${id}/voting/close`);
+        expect(await listed(student, courseId)).toEqual([]);
+
+        // A vote keeps it after voting closes.
+        await admin.post(`/admin/sittings/${id}/voting`, {
+          json: { closesAt: null },
+        });
+        await student.put(`/sittings/${id}/vote`, { json: { rating: 3 } });
+        await admin.post(`/admin/sittings/${id}/voting/close`);
+        expect(await listed(student, courseId)).toEqual([id]);
+      });
+
+      it("counts hidden statistics and forgets a statistic moved away", async () => {
+        const r = refs(h.mock);
+        const courseId = r.emptyCourse.id;
+        const student = await h.student();
+        const admin = await h.admin();
+        const created = (
+          await student.post(`/courses/${courseId}/statistics`, {
+            json: { kindId: KIND.final, year: 2026, semester: 3, average: 50 },
+          })
+        ).json;
+        const id: number = created.sitting.id;
+        expect(await listed(student, courseId)).toEqual([id]);
+
+        // Hidden still counts as something.
+        await admin.put(`/admin/statistics/${created.statistic.id}/hidden`, {
+          json: { hidden: true },
+        });
+        const page = (await student.get(`/courses/${courseId}`)).json;
+        expect(page.sittings).toHaveLength(1);
+        expect(page.sittings[0]).toMatchObject({ id, statistics: [] });
+
+        // Moved away, the only statistic leaves the sitting empty.
+        const moved = await admin.post(
+          `/admin/statistics/${created.statistic.id}/move`,
+          {
+            json: {
+              courseId,
+              kindId: KIND.midterm,
+              year: 2025,
+              semester: 3,
+            },
+          },
+        );
+        expect(await listed(student, courseId)).toEqual([
+          moved.json.sitting.id,
+        ]);
+        expect(await adminListed(admin, courseId)).toContain(id);
+      });
+
+      it("keeps a sitting an admin created, even while empty", async () => {
+        const r = refs(h.mock);
+        const courseId = r.emptyCourse.id;
+        const student = await h.student();
+        const admin = await h.admin();
+        const url = `/admin/courses/${courseId}/sittings`;
+        const fresh = await admin.post(url, {
+          json: { kindId: KIND.final, year: 2025, semester: 3 },
+        });
+        expect(fresh.status).toBe(201);
+        expect(await listed(student, courseId)).toEqual([fresh.json.id]);
+
+        // Re-creating an existing, hidden sitting marks it admin-created too.
+        const key = { kindId: KIND.quiz, number: 1, year: 2026, semester: 3 };
+        const req = (
+          await student.post(`/courses/${courseId}/voting-requests`, {
+            json: key,
+          })
+        ).json;
+        await student.del(`/voting-requests/${req.id}`);
+        expect(await listed(student, courseId)).not.toContain(req.sitting.id);
+        const again = await admin.post(url, { json: key });
+        expect(again.status).toBe(200);
+        expect(again.json.id).toBe(req.sitting.id);
+        const page = (await student.get(`/courses/${courseId}`)).json;
+        const shown = page.sittings.find(
+          (s: { id: number }) => s.id === req.sitting.id,
+        );
+        // Empty, and listed so students can request voting on it.
+        expect(shown).toMatchObject({
+          voting: { state: "never" },
+          statistics: [],
+          difficulty: { voteCount: 0 },
+          votingRequests: { openCount: 0, mine: null },
+        });
+      });
+
+      it("creates a sitting for an upload only when it is approved", async () => {
+        const r = refs(h.mock);
+        const courseId = r.emptyCourse.id;
+        const student = await h.student();
+        const admin = await h.admin();
+        const form = new FormData();
+        form.append("file", new Blob([barChartPng([1, 2, 3])]), "q.png");
+        for (const [k, v] of Object.entries({
+          kindId: String(KIND.quiz),
+          number: "4",
+          year: "2026",
+          semester: "3",
+        }))
+          form.append(k, v);
+        const before = h.mock.ctx.state.sittings.length;
+        const upload = await student.post(`/courses/${courseId}/reports`, {
+          form,
+        });
+        expect(upload.status).toBe(201);
+        expect(h.mock.ctx.state.sittings).toHaveLength(before);
+        expect(await listed(student, courseId)).toEqual([]);
+        expect(await adminListed(admin, courseId)).toEqual([]);
+
+        const approved = await admin.post(
+          `/admin/reports/${upload.json.id}/approve`,
+          { json: { average: 7 } },
+        );
+        expect(approved.status).toBe(201);
+        expect(h.mock.ctx.state.sittings).toHaveLength(before + 1);
+        expect(await listed(student, courseId)).toEqual([
+          approved.json.sitting.id,
+        ]);
+      });
+
+      it("keeps the seeded sittings the E2E suite uses", async () => {
+        const r = refs(h.mock);
+        const byTitle = (t: string) => r.courses.find((c) => c.title === t)!;
+        const student = await h.student();
+        const admin = await h.admin();
+
+        const calculus = (
+          await student.get(`/courses/${byTitle("미적분학 1").id}`)
+        ).json;
+        expect(
+          calculus.sittings.some(
+            (s: { voting: { state: string } }) => s.voting.state === "open",
+          ),
+        ).toBe(true);
+
+        // 선형대수학 has a never-opened sitting to request voting on. An
+        // admin created it, so it stays even once its requests are gone.
+        const linear = byTitle("선형대수학");
+        const never = h.mock.ctx.state.sittings.find(
+          (s) =>
+            s.courseId === linear.id &&
+            s.votingOpenedAt === null &&
+            s.adminCreated,
+        )!;
+        expect(never).toBeDefined();
+        await admin.post(`/admin/voting-requests/${never.id}/reject`, {
+          json: {},
+        });
+        const page = (await student.get(`/courses/${linear.id}`)).json;
+        const shown = page.sittings.find(
+          (s: { id: number }) => s.id === never.id,
+        );
+        expect(shown).toMatchObject({
+          voting: { state: "never" },
+          votingRequests: { openCount: 0, mine: null },
+        });
+
+        // Every other seeded sitting has something in it.
+        for (const s of h.mock.ctx.state.sittings) {
+          expect(
+            (await student.get(`/courses/${s.courseId}`)).json.sittings.some(
+              (x: { id: number }) => x.id === s.id,
+            ),
+          ).toBe(true);
+        }
+      });
     });
 
     it("getCourse 404s for unknown ids", async () => {

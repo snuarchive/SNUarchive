@@ -64,6 +64,41 @@ export function contributeScenarios(h: H) {
           })
         ).status,
       ).toBe(404);
+    });
+
+    it("createComment stores the cleaned body and counts its code points", async () => {
+      const r = refs(h.mock);
+      const c = await h.student();
+      const post = (body: string) =>
+        c.post(`/courses/${r.course.id}/comments`, { json: { body } });
+
+      // Trimmed, and every run of whitespace (tabs and newlines too) becomes
+      // one space; that text is what is stored and returned.
+      const messy = await post("\t 기출이\n\n  답\u3000입니다 \r\n");
+      expect(messy.status).toBe(201);
+      expect(messy.json.body).toBe("기출이 답 입니다");
+      expect(
+        h.mock.ctx.state.comments.find((x) => x.id === messy.json.id)!.body,
+      ).toBe("기출이 답 입니다");
+
+      // The limit applies after cleaning: 50 characters padded with spaces
+      // are fine, and so is a run of spaces that collapses into the limit.
+      const fifty = "가".repeat(25) + "     " + "나".repeat(24);
+      expect([...fifty.replace(/\s+/g, " ")]).toHaveLength(50);
+      expect((await post(`   ${fifty}   `)).status).toBe(201);
+      expect(fields(await post(`${fifty}나`))).toEqual([
+        { field: "body", code: "TOO_LONG" },
+      ]);
+      // Code points, not UTF-16 units or bytes.
+      expect((await post("😀".repeat(50))).status).toBe(201);
+      expect(fields(await post("😀".repeat(51)))).toEqual([
+        { field: "body", code: "TOO_LONG" },
+      ]);
+
+      for (const blank of ["", " ", "\n\t ", "\u3000"])
+        expect(fields(await post(blank))).toEqual([
+          { field: "body", code: "REQUIRED" },
+        ]);
       expect(
         (
           await c.post(`/courses/${r.course.id}/comments`, {
@@ -460,11 +495,51 @@ export function contributeScenarios(h: H) {
         ),
       ).toEqual([{ field: "note", code: "TOO_LONG" }]);
       expect(
+        fields(
+          await c.post(url, {
+            json: {
+              ...key,
+              kindId: KIND.midterm,
+              note: ` ${"가".repeat(101)}`,
+            },
+          }),
+        ),
+      ).toEqual([{ field: "note", code: "TOO_LONG" }]);
+      expect(
         (await c.post(`/courses/${UNKNOWN_ID}/voting-requests`, { json: key }))
           .status,
       ).toBe(404);
       expect((await c.post(url, { json: key, csrf: false })).status).toBe(403);
       expect((await h.client().post(url, { json: key })).status).toBe(401);
+    });
+
+    it("createVotingRequest stores a blank note as null and trims the rest", async () => {
+      const r = refs(h.mock);
+      const url = `/courses/${r.course.id}/voting-requests`;
+      const key = { kindId: KIND.final, year: 2026, semester: 3 };
+      const cases: [string | null | undefined, string | null][] = [
+        ["", null],
+        ["   ", null],
+        ["\n\t", null],
+        [null, null],
+        [undefined, null],
+        // Length counts after trimming, so this is exactly the limit.
+        [`  ${"가".repeat(100)}  `, "가".repeat(100)],
+        ["  12월 15일  ", "12월 15일"],
+      ];
+      for (const [i, [note, stored]] of cases.entries()) {
+        // One request per person and sitting, so a fresh account each time.
+        const c = await h.client().login(`2026-${20000 + i}@snu.ac.kr`);
+        const res = await c.post(url, {
+          json: note === undefined ? key : { ...key, note },
+        });
+        expect([note, res.status]).toEqual([note, 201]);
+        expect(res.json.note).toBe(stored);
+        expect(
+          h.mock.ctx.state.votingRequests.find((x) => x.id === res.json.id)!
+            .note,
+        ).toBe(stored);
+      }
     });
 
     it("cancelVotingRequest withdraws only the owner’s open request", async () => {

@@ -20,13 +20,13 @@ import {
 import { sniff } from "../files";
 import {
   checkFigures,
-  checkMaxLength,
   checkNickname,
   checkSittingKey,
   collapseWhitespace,
   completeFigures,
   cpLength,
   int,
+  optionalText,
   pathId,
   readFigures,
   readJson,
@@ -252,9 +252,12 @@ export function contributeRoutes(ctx: Ctx) {
       const body = await readJson(c, [...SITTING_KEY_FIELDS, "note"]);
       const fe = new FieldErrors();
       const key = checkSittingKey(readSittingKey(body), fe);
-      const rawNote = str(body, "note", { nullable: true });
-      const note = rawNote?.trim() || null;
-      checkMaxLength(note, LIMITS.votingRequestNoteMaxLength, "note", fe);
+      const note = optionalText(
+        body,
+        "note",
+        LIMITS.votingRequestNoteMaxLength,
+        fe,
+      );
       fe.throwIfAny();
       const { sitting } = getOrCreateSitting(ctx, course.id, key!);
       if (isVotingOpen(ctx, sitting)) throw conflict("VOTING_ALREADY_OPEN");

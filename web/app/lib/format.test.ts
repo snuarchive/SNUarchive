@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  cleanComment,
   codePointLength,
   departmentsText,
   displayNumber,
@@ -88,6 +89,15 @@ describe("termLabel", () => {
     expect(termLabel({ year: 2025, semester: 3 }, semesters)).toBe(
       "2025 2학기",
     );
+  });
+});
+
+describe("cleanComment", () => {
+  it("trims and collapses whitespace as the API stores it", () => {
+    expect(cleanComment("  기출   많이\t풀어보세요  ")).toBe(
+      "기출 많이 풀어보세요",
+    );
+    expect(cleanComment("   ")).toBe("");
   });
 });
 

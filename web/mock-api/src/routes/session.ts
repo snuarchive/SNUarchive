@@ -4,6 +4,7 @@ import {
   checkOrigin,
   clearSessionCookies,
   clientIp,
+  ensureCsrfCookie,
   guard,
   me,
   safeNext,
@@ -55,7 +56,10 @@ export function sessionRoutes(ctx: Ctx) {
     return c.redirect(`${app}${withAuthOk(next)}`, 302);
   });
 
-  r.post("/auth/logout", guard(ctx, "write"), (c) => {
+  // Origin only, and no session needed: an expired or broken session can
+  // still clear its cookies.
+  r.post("/auth/logout", (c) => {
+    checkOrigin(c, ctx);
     clearSessionCookies(c, ctx);
     return c.body(null, 204);
   });
@@ -83,7 +87,10 @@ export function sessionRoutes(ctx: Ctx) {
     return c.body(null, 204);
   });
 
-  r.get("/me", guard(ctx, "user"), (c) => c.json(v.me(ctx, me(c))));
+  r.get("/me", guard(ctx, "user"), (c) => {
+    ensureCsrfCookie(c, ctx);
+    return c.json(v.me(ctx, me(c)));
+  });
 
   r.patch("/me", guard(ctx, "write"), async (c) => {
     const user = me(c);

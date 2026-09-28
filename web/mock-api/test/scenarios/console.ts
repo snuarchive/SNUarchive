@@ -168,13 +168,22 @@ export function consoleScenarios(h: H) {
         (await admin.post("/admin/admins", { json: { userId: UNKNOWN_ID } }))
           .status,
       ).toBe(404);
+      // A deleted (scrubbed) account is 404, like an unknown one.
+      const deleted = await admin.post("/admin/admins", {
+        json: { userId: r.deletedUser.id },
+      });
+      expect(deleted.status).toBe(404);
+      expect(deleted.json.error.code).toBe("NOT_FOUND");
+      const leaver = await h.as(SEED_ACCOUNTS.newbie);
+      await leaver.del("/me", { headers: { "x-confirm-delete": "true" } });
+      const scrubbed = await admin.post("/admin/admins", {
+        json: { userId: r.newbie.id },
+      });
+      expect(scrubbed.status).toBe(404);
+      expect(scrubbed.json.error.code).toBe("NOT_FOUND");
       expect(
-        (
-          await admin.post("/admin/admins", {
-            json: { userId: r.deletedUser.id },
-          })
-        ).status,
-      ).toBe(404);
+        h.mock.ctx.state.users.find((u) => u.id === r.newbie.id)!.dbAdmin,
+      ).toBe(false);
       expect(
         (
           await admin.post("/admin/admins", {

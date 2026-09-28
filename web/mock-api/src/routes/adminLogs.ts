@@ -217,14 +217,20 @@ export function adminLogRoutes(ctx: Ctx) {
     });
   });
 
+  // The token binds the filter, the count and the highest log id now, so
+  // entries written after the preview are neither counted nor deleted.
   r.post("/admin/logs/delete-preview", guard(ctx, "adminWrite"), async (c) => {
     const f = filterFromBody(await readJson(c, LOG_FILTER_FIELDS));
-    const count = ctx.state.logs.filter((l) => matches(f, l)).length;
+    const maxId = ctx.state.logs.reduce((m, l) => Math.max(m, l.id), 0);
+    const count = ctx.state.logs.filter(
+      (l) => l.id <= maxId && matches(f, l),
+    ).length;
     const token = randomBytes(18).toString("base64url");
     const expiresAt = ctx.now() + LIMITS.deletePreviewTtlMs;
     ctx.state.deletePreviews.set(token, {
       filterKey: filterKey(f),
       count,
+      maxId,
       expiresAt,
     });
     return c.json({ count, token, expiresAt: iso(expiresAt) });
@@ -243,7 +249,9 @@ export function adminLogRoutes(ctx: Ctx) {
     delete filterBody.token;
     const f = filterFromBody(filterBody);
     const preview = ctx.state.deletePreviews.get(token!);
-    const matching = ctx.state.logs.filter((l) => matches(f, l));
+    const matching = preview
+      ? ctx.state.logs.filter((l) => l.id <= preview.maxId && matches(f, l))
+      : [];
     if (
       !preview ||
       preview.expiresAt <= ctx.now() ||
@@ -259,7 +267,7 @@ export function adminLogRoutes(ctx: Ctx) {
       ctx,
       admin.id,
       "logs_delete",
-      { filter: filterMetadata(f), deleted: doomed.size },
+      { filter: filterMetadata(f), maxId: preview.maxId, deleted: doomed.size },
       clientIp(c),
     );
     return c.json({ deleted: doomed.size });

@@ -81,7 +81,13 @@ test("comments count code points and post", async ({ page }) => {
   await expect(
     page.getByRole("button", { name: "등록" }).last(),
   ).toBeDisabled();
-  await box.fill("좋아요👍");
+  // Counted as the API stores it: trimmed, whitespace collapsed.
+  await box.fill("   ");
+  await expect(page.getByText("0/50")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "등록" }).last(),
+  ).toBeDisabled();
+  await box.fill("  좋아요👍  ");
   await expect(page.getByText("4/50")).toBeVisible();
   await page.getByRole("button", { name: "등록" }).last().click();
   await expectToast(page, "후기를 등록했습니다.");

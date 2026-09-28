@@ -179,6 +179,7 @@ export function getOrCreateSitting(
     votingOpenedAt: null,
     votingClosesAt: null,
     votingEndedAt: null,
+    adminCreated: false,
     createdAt: ctx.now(),
   };
   ctx.state.sittings.push(sitting);
@@ -244,6 +245,27 @@ export function fulfilRequests(
     }
   }
   return n;
+}
+
+/**
+ * Nothing in it: no statistic (a hidden one counts), no vote, no open voting
+ * request, and voting not open. `GET /courses/{courseId}` leaves such a
+ * sitting out unless an admin created it; it is never deleted, and shows
+ * again as soon as any of these stops holding.
+ */
+export function isEmptySitting(ctx: Ctx, s: SittingRow): boolean {
+  const st = ctx.state;
+  return (
+    !isVotingOpen(ctx, s) &&
+    !st.statistics.some((x) => x.sittingId === s.id) &&
+    !st.votes.some((x) => x.sittingId === s.id) &&
+    !st.votingRequests.some((x) => x.sittingId === s.id && x.status === "open")
+  );
+}
+
+/** Whether the student-facing course page lists the sitting. */
+export function isListedSitting(ctx: Ctx, s: SittingRow): boolean {
+  return s.adminCreated || !isEmptySitting(ctx, s);
 }
 
 export function sittingVotes(ctx: Ctx, s: SittingRow) {

@@ -42,6 +42,11 @@ export interface SittingRow {
   votingOpenedAt: number | null;
   votingClosesAt: number | null;
   votingEndedAt: number | null;
+  /**
+   * Set by `POST /admin/courses/{courseId}/sittings`, also on an existing
+   * row. Such a sitting stays on the course page even while empty.
+   */
+  adminCreated: boolean;
   createdAt: number;
 }
 
@@ -177,6 +182,8 @@ export interface JobRow {
 export interface DeletePreview {
   filterKey: string;
   count: number;
+  /** The highest log id at preview time; the delete goes no further. */
+  maxId: number;
   expiresAt: number;
 }
 

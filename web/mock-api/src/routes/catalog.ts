@@ -5,7 +5,7 @@ import { guard, me } from "../auth";
 import type { CatalogCourse } from "../catalog";
 import { searchCatalog } from "../catalog";
 import type { Ctx } from "../domain";
-import { requireCourse, votingState } from "../domain";
+import { isListedSitting, requireCourse, votingState } from "../domain";
 import { malformed } from "../errors";
 import {
   decodeCursor,
@@ -141,8 +141,9 @@ export function catalogRoutes(ctx: Ctx) {
     const user = me(c);
     const course = requireCourse(ctx, pathId(c, "courseId"));
     const order = (id: number) => kindById(id)?.sortOrder ?? 0;
+    // Empty sittings are left out unless an admin created them.
     const sittings = ctx.state.sittings
-      .filter((s) => s.courseId === course.id)
+      .filter((s) => s.courseId === course.id && isListedSitting(ctx, s))
       .sort((a: SittingRow, b: SittingRow) => v.sittingSort(a, b, order));
     const comments = commentsOf(ctx, course.id);
     const first = 20;

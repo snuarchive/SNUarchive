@@ -94,3 +94,11 @@ export function termLabel(
 export function codePointLength(text: string): number {
   return [...text].length;
 }
+
+/**
+ * A comment as the API stores it: trimmed, with runs of whitespace collapsed
+ * to one space. Its length limit counts this value.
+ */
+export function cleanComment(text: string): string {
+  return text.trim().replace(/\s+/gu, " ");
+}

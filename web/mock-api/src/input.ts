@@ -91,7 +91,8 @@ export function num(body: Body, key: string): number | null | undefined {
 
 export function bool(body: Body, key: string): boolean | undefined {
   const v = body[key];
-  if (v === undefined) return undefined;
+  // No boolean field is nullable: null counts as missing, as in `str`.
+  if (v === undefined || v === null) return undefined;
   if (typeof v !== "boolean")
     throw malformed(`${key}: true 또는 false여야 합니다.`);
   return v;
@@ -257,6 +258,21 @@ export function checkNickname(
   const v = (raw ?? "").trim();
   if (cpLength(v) > LIMITS.nicknameMaxLength) fe.add(field, "TOO_LONG");
   return v || LIMITS.anonymous;
+}
+
+/**
+ * Optional free text: trimmed, and stored as null when empty or blank rather
+ * than refused. The length limit applies to the trimmed text.
+ */
+export function optionalText(
+  body: Body,
+  key: string,
+  max: number,
+  fe: FieldErrors,
+): string | null {
+  const v = str(body, key, { nullable: true })?.trim() || null;
+  checkMaxLength(v, max, key, fe);
+  return v;
 }
 
 export function checkMaxLength(

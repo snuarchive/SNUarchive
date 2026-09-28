@@ -5,7 +5,12 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { safeNext, withAuthOk } from "../src/auth";
 import { termAt } from "../src/calendar";
-import { maskName } from "../src/domain";
+import {
+  getOrCreateSitting,
+  isEmptySitting,
+  isListedSitting,
+  maskName,
+} from "../src/domain";
 import type { UserRow } from "../src/state";
 import {
   identityKey,
@@ -16,7 +21,14 @@ import {
 import { defaultOptions } from "../src/config";
 import { FieldErrors } from "../src/errors";
 import { sniff, barChartPng, textPdf } from "../src/files";
-import { checkFigures, completeFigures } from "../src/input";
+import {
+  checkFigures,
+  collapseWhitespace,
+  completeFigures,
+  cpLength,
+  optionalText,
+} from "../src/input";
+import { KIND } from "../src/refdata";
 
 function fixtureCatalog() {
   const dir = mkdtempSync(join(tmpdir(), "snu-mock-catalog-"));
@@ -210,6 +222,97 @@ describe("statistic rules", () => {
     expect(check({ q1: 0.125, average: -1 })).toEqual([
       { field: "", code: "VALUE_OUT_OF_RANGE" },
     ]);
+  });
+});
+
+describe("text rules", () => {
+  it("collapse a comment body and count code points", () => {
+    expect(collapseWhitespace("  a \t\n b\u3000\u3000c  ")).toBe("a b c");
+    expect(collapseWhitespace(" \n\t ")).toBe("");
+    expect(cpLength("😀가a")).toBe(3);
+  });
+
+  it("store blank optional text as null and count after trimming", () => {
+    const read = (v: unknown, max = 3) => {
+      const fe = new FieldErrors();
+      const out = optionalText({ note: v }, "note", max, fe);
+      return { out, errors: fe.list };
+    };
+    for (const blank of ["", "   ", "\n\t", null, undefined])
+      expect(read(blank)).toEqual({ out: null, errors: [] });
+    expect(read("  abc  ")).toEqual({ out: "abc", errors: [] });
+    expect(read(" 😀😀😀 ")).toEqual({ out: "😀😀😀", errors: [] });
+    expect(read("abcd").errors).toEqual([{ field: "note", code: "TOO_LONG" }]);
+  });
+});
+
+describe("empty sittings", () => {
+  it("are listed only while something is in them, or when an admin made them", async () => {
+    const { createApp } = await import("../src/app");
+    const { ctx } = createApp();
+    const course = ctx.catalog.courses[0];
+    const { sitting } = getOrCreateSitting(ctx, course.id, {
+      kindId: KIND.midterm,
+      number: null,
+      year: 1999,
+      semester: 1,
+    });
+    expect(sitting.adminCreated).toBe(false);
+    expect(isEmptySitting(ctx, sitting)).toBe(true);
+    expect(isListedSitting(ctx, sitting)).toBe(false);
+
+    const request = {
+      id: 1e6,
+      sittingId: sitting.id,
+      userId: 1,
+      note: null,
+      status: "open" as const,
+      createdAt: ctx.now(),
+      resolvedAt: null,
+      resolvedBy: null,
+    };
+    ctx.state.votingRequests.push(request);
+    expect(isListedSitting(ctx, sitting)).toBe(true);
+    Object.assign(request, { status: "cancelled" });
+    expect(isListedSitting(ctx, sitting)).toBe(false);
+
+    // Open voting, then a closed one with a vote.
+    sitting.votingOpenedAt = ctx.now() - 1000;
+    expect(isListedSitting(ctx, sitting)).toBe(true);
+    sitting.votingEndedAt = ctx.now();
+    expect(isListedSitting(ctx, sitting)).toBe(false);
+    ctx.state.votes.push({
+      id: 1e6,
+      sittingId: sitting.id,
+      userId: 1,
+      rating: 3,
+      createdAt: ctx.now(),
+      updatedAt: ctx.now(),
+    });
+    expect(isListedSitting(ctx, sitting)).toBe(true);
+    ctx.state.votes.pop();
+
+    // A hidden statistic counts.
+    ctx.state.statistics.push({
+      ...completeFigures({ average: 1 }),
+      id: 1e6,
+      sittingId: sitting.id,
+      contributorId: 1,
+      nickname: "(익명)",
+      source: "direct",
+      sourceReportId: null,
+      createdAt: ctx.now(),
+      updatedAt: ctx.now(),
+      hiddenAt: ctx.now(),
+      hiddenReason: null,
+    });
+    expect(isEmptySitting(ctx, sitting)).toBe(false);
+    ctx.state.statistics.pop();
+    expect(isEmptySitting(ctx, sitting)).toBe(true);
+
+    sitting.adminCreated = true;
+    expect(isEmptySitting(ctx, sitting)).toBe(true);
+    expect(isListedSitting(ctx, sitting)).toBe(true);
   });
 });
 
