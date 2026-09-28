@@ -5,6 +5,7 @@ package auth
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/netip"
 	"regexp"
@@ -170,7 +171,7 @@ func releaseEmail(ctx context.Context, q *dbq.Queries, email string, keep int64)
 		return nil
 	}
 	if holder.GoogleSub == nil {
-		return errEmailHeld
+		return fmt.Errorf("%w: sub account %d, holder %d", errEmailHeld, keep, holder.ID)
 	}
 	return q.ReleaseEmail(ctx, holder.ID)
 }
