@@ -116,8 +116,8 @@ paths:
             and the redirect goes to `/`.
 
             A `next` is also dropped, and sign-in still returns to `/`, if
-            keeping it would push the signed state cookie past the size the
-            browser accepts (O32, 2026-09-29 user decision).
+            the signed state cookie value would exceed 3500 bytes with it
+            kept (O32, 2026-09-29 user decision).
 
             Example: `/courses/12`.
           schema: { type: string }

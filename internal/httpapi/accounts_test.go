@@ -174,21 +174,55 @@ func TestGoogleCallbackOutcomes(t *testing.T) {
 	}
 }
 
-// TestGoogleSignInWithHugeNextDropsNext covers O32 (2026-09-29 user
-// decision): a next path that safeNext accepts, but whose JSON-escaped form
-// would blow past the state cookie's byte budget, is dropped so the state
-// cookie the browser sets stays under the limit; sign-in still succeeds and
-// returns to /.
-func TestGoogleSignInWithHugeNextDropsNext(t *testing.T) {
-	e := newEnv(t)
-	huge := "/" + strings.Repeat("<", 2000) // '<' JSON-escapes to <: 6 bytes each
-	rec := e.signIn(t, huge, kim)
-	if rec.Code != http.StatusFound || rec.Header().Get("Location") != appOrigin+"/?auth=ok" {
-		t.Fatalf("callback: %d %s", rec.Code, rec.Header().Get("Location"))
+// TestGoogleSignInNextSizeCap covers O32 (2026-09-29 user decision): next is
+// kept in the signed state cookie only while doing so keeps its value under
+// 3500 bytes (internal/httpapi.maxStateCookieBytes, mirrored here as
+// maxStateCookieBytes since it is unexported); past that it is dropped so
+// sign-in still succeeds and returns to /, rather than issuing a cookie the
+// browser would discard.
+func TestGoogleSignInNextSizeCap(t *testing.T) {
+	const maxStateCookieBytes = 3500
+	cases := []struct {
+		name     string
+		next     string // '<' JSON-escapes to <: 6 bytes each.
+		wantNext bool
+	}{
+		{"just under the limit: kept", "/" + strings.Repeat("<", 400), true},
+		{"far past the limit: dropped", "/" + strings.Repeat("<", 2000), false},
 	}
-	cs := cookies(rec)
-	if sess := cs["snu_session"]; sess == nil {
-		t.Fatalf("session cookie missing: %+v", cs)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := newEnv(t)
+			start := e.spec.Do(t, e.srv, http.MethodGet, "/api/v1/auth/google?next="+url.QueryEscape(tc.next), nil, nil)
+			if start.Code != http.StatusFound {
+				t.Fatalf("start: %d", start.Code)
+			}
+			state := cookies(start)["snu_oauth"]
+			if state == nil {
+				t.Fatalf("state cookie missing")
+			}
+			if len(state.Value) > maxStateCookieBytes {
+				t.Fatalf("state cookie value is %d bytes, want <= %d", len(state.Value), maxStateCookieBytes)
+			}
+			loc, _ := url.Parse(start.Header().Get("Location"))
+			q := loc.Query()
+			c := kim
+			c.Nonce = q.Get("nonce")
+			e.fake.Grant("code-1", q.Get("code_challenge"), c)
+			cb := "/api/v1/auth/google/callback?code=code-1&state=" + url.QueryEscape(q.Get("state"))
+			rec := e.spec.Do(t, e.srv, http.MethodGet, cb, nil, header(state))
+
+			wantLoc := appOrigin + "/?auth=ok"
+			if tc.wantNext {
+				wantLoc = appOrigin + tc.next + "?auth=ok"
+			}
+			if rec.Code != http.StatusFound || rec.Header().Get("Location") != wantLoc {
+				t.Fatalf("callback: %d %s, want 302 %s", rec.Code, rec.Header().Get("Location"), wantLoc)
+			}
+			if sess := cookies(rec)["snu_session"]; sess == nil {
+				t.Fatalf("session cookie missing")
+			}
+		})
 	}
 }
 

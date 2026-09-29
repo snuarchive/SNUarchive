@@ -22,6 +22,13 @@ func TestSafeNext(t *testing.T) {
 		// percent-decoded form.
 		"/%2e%2e//x", "/..//x", "/.//x", "/%2F%2Fx", "/%2F%2Fevil",
 		"/a/../b", "/a/./b", "/a/%2e%2e/b", "/..", "/.", "/../", "/./",
+		// O32 fix round 1: safeNext's own character rules (second character
+		// not "/" or "\", no "\" anywhere, no control characters/DEL/space)
+		// apply to the percent-decoded path too, since a browser normalises
+		// the decoded form the same way it would the raw one.
+		"/%5Cevil", "/%5C%5Cevil", "/%09/evil", "/%00",
+		// a path that fails to percent-decode is unsafe, not passed through.
+		"/%zz",
 	} {
 		if _, accepted := safeNext(bad, app); accepted {
 			t.Errorf("%q accepted", bad)
@@ -46,6 +53,9 @@ func TestWithAuthOK(t *testing.T) {
 		"/x?tab=1&auth=forbidden":     "/x?tab=1&auth=ok",
 		"/x?auth=forbidden":           "/x?auth=ok",
 		"/x?a%75th=forbidden&tab=1":   "/x?tab=1&auth=ok",
+		// O32 fix round 1: an empty pair from a doubled "&" is part of the
+		// query as written and is kept, not dropped.
+		"/x?a=1&&b=2": "/x?a=1&&b=2&auth=ok",
 	} {
 		if got := withAuthOK(in); got != want {
 			t.Errorf("withAuthOK(%q) = %q, want %q", in, got, want)
