@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"slices"
+	"time"
 
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
@@ -25,10 +26,13 @@ type ConfigSource interface {
 }
 
 type Deps struct {
-	Config  *config.Config
-	Logger  *slog.Logger
-	DB      Pinger
-	RefData ConfigSource
+	Config   *config.Config
+	Logger   *slog.Logger
+	DB       Pinger
+	RefData  ConfigSource
+	Accounts Accounts
+	Google   GoogleSignIn     // nil when only dev login is configured
+	Now      func() time.Time // nil means time.Now
 }
 
 type Route struct {
@@ -51,6 +55,7 @@ func New(d Deps) *Server {
 	rt.handle(http.MethodGet, "/healthz", http.HandlerFunc(healthz))
 	rt.handle(http.MethodGet, "/readyz", readyz(d.DB))
 	rt.handle(http.MethodGet, apiPrefix+"/config", getConfig(d))
+	newAccountAPI(d).register(rt)
 
 	var h http.Handler = rt.mux
 	h = withRecover(d.Logger)(h)

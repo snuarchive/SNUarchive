@@ -14,6 +14,7 @@
 | `make check` | sqlc 생성물 최신 여부 + lint + test |
 | `make run` | 현재 셸 환경변수로 서버 실행 |
 | `make migrate` | `DATABASE_URL`에 마이그레이션 적용 |
+| `go run ./cmd/snuarchive dev seed` | 개발 데이터로 초기화(계정 4개 등). `APP_ENV=development`가 아니면 거부한다 |
 
 되돌리기(`snuarchive migrate down`)는 실수 방지를 위해 `--yes`를 요구한다: `--yes` 없이 실행하면 어떤 마이그레이션이 롤백될지만 stderr에 출력하고 아무것도 되돌리지 않는다.
 
@@ -22,6 +23,14 @@
     export APP_ENV=development DEV_LOGIN_ENABLED=true APP_ORIGIN=http://localhost:5173 \
       DATABASE_URL=postgres://snuarchive:pw@localhost:5432/snuarchive?sslmode=disable \
       SESSION_KEYS=$(openssl rand -base64 32)
+
+세션은 `SESSION_TTL`(기본 168h)마다 쓰는 동안 연장되고, 로그인 후 `SESSION_MAX_AGE`(기본 720h)가 지나면 다시 로그인해야 한다.
+
+개발 시드(`snuarchive dev seed`)는 `users`를 비우고(연결된 기여·로그·즐겨찾기도 함께) 다시 채운다. 계정은
+`admin@snu.ac.kr`(관리자 권한은 `ADMIN_EMAILS`에 넣어야 생김), `student@snu.ac.kr`(프로필 있음),
+`newbie@snu.ac.kr`(프로필 없음), `moderator@snu.ac.kr`(DB 관리자). 개발 로그인으로 이 주소를 넣으면 된다.
+compose에서는 `docker compose -f deploy/compose.yaml --env-file deploy/.env exec app snuarchive dev seed`
+(`APP_ENV=development`인 스택에서만).
 
 ## docker compose
 1. `cp deploy/.env.example deploy/.env` 후 값 채우기 (Google 없이 해볼 때는 파일 끝의 개발용 두 줄 사용)

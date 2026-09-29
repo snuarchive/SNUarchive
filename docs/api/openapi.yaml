@@ -93,7 +93,8 @@ paths:
       summary: Begin Google sign-in
       description: |
         A browser navigation, not an XHR target. Sets a signed, short-lived
-        state cookie and redirects to Google with `hd=snu.ac.kr`.
+        state cookie (`snu_oauth`, path `/api/v1/auth/google`) and redirects to
+        Google with `hd=snu.ac.kr`, a PKCE (S256) challenge and a nonce.
 
         `next` is kept in the signed state cookie; after a successful callback
         the browser is sent there (still with `auth=ok` appended) instead of
@@ -106,9 +107,18 @@ paths:
             Where to return after signing in. Valid only if all of: it starts
             with `/`; its second character is not `/` or `\`; it contains no
             `\` anywhere; it contains no control or whitespace character
-            (U+0000–U+001F, U+007F, space); and parsing it as a URL relative
-            to the app origin yields the app origin back (no scheme, no
-            host). Anything else is ignored and the redirect goes to `/`.
+            (U+0000–U+001F, U+007F, space); parsing it as a URL relative to
+            the app origin yields the app origin back (no scheme, no host);
+            its resolved path does not start with `//`; and it has no `.` or
+            `..` path segment, checked both as written and percent-decoded
+            (O32, 2026-09-29 user decision — so `/%2e%2e//x`, `/..//x`,
+            `/.//x` and `/%2F%2Fx` are all invalid). Anything else is ignored
+            and the redirect goes to `/`.
+
+            A `next` is also dropped, and sign-in still returns to `/`, if
+            the signed state cookie value would exceed 3500 bytes with it
+            kept (O32, 2026-09-29 user decision).
+
             Example: `/courses/12`.
           schema: { type: string }
       responses:
@@ -125,11 +135,23 @@ paths:
         `email_verified`, `@snu.ac.kr`), upserts the user, records `login`
         with the client IP, sets both cookies and redirects to `/?auth=ok`
         (or to the `next` path given to `/auth/google`, with `auth=ok` added
-        as a query parameter — any existing query string and fragment on
-        `next` are preserved).
+        as a query parameter — the rest of `next`'s query and its fragment
+        are preserved as written, but any existing `auth` parameter is
+        removed first, its key compared after percent-decoding, so
+        `/x?auth=forbidden&tab=1#top` becomes `/x?tab=1&auth=ok#top` (O32,
+        2026-09-29 user decision)).
 
-        Failures redirect rather than render: `/?auth=forbidden` for a
-        non-SNU account, `/?auth=error` otherwise. The client owns the message.
+        Failures redirect rather than render: `/?auth=cancelled` when the user
+        declined on Google's page (`error=access_denied`), `/?auth=forbidden`
+        for an account that is not a verified `@snu.ac.kr` member of the
+        `snu.ac.kr` Workspace, `/?auth=error` otherwise. The client owns the
+        message.
+
+        Accounts are keyed by Google's subject id. When a school address has
+        been reissued, its new holder gets a new account; the previous holder
+        keeps theirs and gets their current address back at their next
+        sign-in. The display name is stored when the account is created and
+        not overwritten later.
       security: []
       parameters:
         - { name: code,  in: query, schema: { type: string } }
@@ -169,8 +191,9 @@ paths:
         otherwise the route is not registered and returns 404. The server
         refuses to start with this enabled in production.
 
-        Upserts the user exactly as the OAuth callback would, including the
-        `ADMIN_EMAILS` check, then sets both cookies.
+        Finds or creates the account by email (it never sets a Google sub);
+        the display name is stored only when the account is created. Applies
+        the `ADMIN_EMAILS` check, then sets both cookies.
 
         Checks the `Origin` header (it must equal the app origin; otherwise
         `403 CSRF_INVALID`) but needs no CSRF token, since no session exists
@@ -255,19 +278,21 @@ paths:
       summary: Delete the account
       description: |
         Scrubs rather than deletes: clears email, display name, college,
-        admission year and last IP, revokes admin, stamps `deleted_at`, and
-        bumps the session epoch so every session on every device ends.
-        Contributions survive, attached to a row that identifies nobody.
-        The user's favourites are deleted; their open voting requests stay
-        open, since they still count as demand for voting.
+        admission year, last IP and the Google account link (sub), revokes
+        admin, stamps `deleted_at`, and bumps the session epoch so every
+        session on every device ends. Contributions survive, attached to a
+        row that identifies nobody. The user's favourites are deleted; their
+        open voting requests stay open, since they still count as demand for
+        voting.
 
         Not reversible, so it needs `X-Confirm-Delete: true` on top of the
         CSRF token.
 
-        Surface before the button: signing in again creates a new account
-        with no access to the old contributions; nicknames typed onto
-        statistics and uploads are kept as written; activity log entries are
-        kept until the retention policy removes them.
+        Surface before the button: clearing the Google sub is why signing in
+        again creates a new account with no access to the old contributions;
+        nicknames typed onto statistics and uploads are kept as written;
+        activity log entries are kept until the retention policy removes
+        them.
       security:
         - sessionCookie: []
           csrfToken: []
@@ -1819,9 +1844,14 @@ components:
       in: cookie
       name: snu_session
       description: |
-        HttpOnly, Secure, SameSite=Lax. HMAC-signed `{uid, exp, ep}`; the
-        server also checks the account is live and `ep` equals its session
-        epoch.
+        HttpOnly, SameSite=Lax, Secure when the app origin is https.
+        HMAC-signed `{uid, exp, ep, at}`; the server also checks the account
+        is live and `ep` equals its session epoch. The account must currently
+        hold an email address; if a school address is reassigned to another user,
+        the previous holder's sessions become invalid. Sliding: once less than half
+        of `SESSION_TTL` is left, a response carries a renewed cookie, never
+        lasting past `SESSION_MAX_AGE` from sign-in. A request with a cookie
+        that no longer works gets `401` and the cookies cleared.
     csrfToken:
       type: apiKey
       in: header

@@ -26,7 +26,11 @@ API 세부(경로, 스키마, 에러 코드)는 그 파일이 기준이고, 이 
 | DB | PostgreSQL 18(개발·테스트·VM). Supabase 호환은 O11 확인 전까지 18 전용 기능 최소화 |
 | 배포 | 주: 학교/동아리 VM에서 docker compose. 대체: Vercel(Go 함수) + Supabase |
 | 스토리지 | `STORAGE_DRIVER=fs\|s3` (s3는 MinIO·Supabase Storage·R2·S3 공용) |
-| 세션 | HMAC 서명 쿠키(`user_id`, 만료, `session_epoch`), 키 교체 지원 |
+| 세션 | HMAC 서명 쿠키(`uid`, `exp`, `ep`, 로그인 시각 `at`), 키 교체 지원. 사용하면 연장: 남은 시간이 `SESSION_TTL`의 절반 아래면 요청 때 다시 발급하되 로그인 후 `SESSION_MAX_AGE`(기본 30일)를 넘지 않는다(2026-09-28 사용자 결정) |
+| 사용자 식별 | Google `sub`(`users.google_sub`, UNIQUE). 이메일은 로그인 때마다 갱신. 재발급된 학교 주소의 새 주인은 이전 계정을 이어받지 않는다(5.1). dev-login은 sub 없이 이메일로 찾는다(2026-09-28 사용자 결정) |
+| OAuth 구현 | `golang.org/x/oauth2` + `github.com/coreos/go-oidc/v3`, PKCE(S256)와 nonce. 엔드포인트는 고정값(디스커버리 없음)(2026-09-28 사용자 결정) |
+| 표시 이름 | Google 프로필 이름(대개 실명)을 계정을 만들 때만 저장. 이후 로그인은 덮어쓰지 않는다(2026-09-28 사용자 결정) |
+| 로그인 취소 | Google 동의 화면에서 취소(`error=access_denied`)하면 `/?auth=cancelled`(2026-09-28 사용자 결정) |
 | 관리자 | `ADMIN_EMAILS`(env, API로 회수 불가) **또는** `users.is_admin`(DB, 콘솔로 부여·회수) |
 | 개발 로그인 | `APP_ENV=development` + `DEV_LOGIN_ENABLED=true`일 때만. production에서 켜면 기동 실패 |
 | API | 제안서 `openapi.yaml` 기반 수정. `/api/v1`, 에러 코드, 키셋 커서 |
@@ -69,7 +73,7 @@ API 세부(경로, 스키마, 에러 코드)는 그 파일이 기준이고, 이 
 | 구현 방식 | 서브에이전트 구동. 도중 결정은 open-items에 기록 후 건너뛰고 단계 끝에 모아서 질문 |
 | 즐겨찾기 순서 | 사용자가 정한다(`favorites.position`, `PUT /me/favorites/order`에 전체 집합을 순서대로). 목록·ids·홈은 이 순서. 새 즐겨찾기는 맨 앞 |
 | `/config.devLoginEnabled` | `APP_ENV=development` + `DEV_LOGIN_ENABLED=true`일 때만 true(= dev-login 경로가 있을 때) |
-| 로그인 후 돌아갈 곳 | `GET /auth/google?next=` — 유효한 `next`는 다음을 모두 만족해야 한다: `/`로 시작, 두 번째 글자가 `/`나 `\`가 아님, 어디에도 `\`를 포함하지 않음, 제어문자나 공백(U+0000–U+001F, U+007F, space)을 포함하지 않음, 앱 출처를 기준으로 URL로 파싱했을 때 결과가 다시 앱 출처가 됨(스킴도 호스트도 없음). 그 밖의 값은 무시하고 `/`로 간다. 서명된 state 쿠키에 담아 콜백 성공 시 그리로 감(쿼리 파라미터로 `auth=ok`를 덧붙이되, 기존 쿼리와 프래그먼트는 유지) |
+| 로그인 후 돌아갈 곳 | `GET /auth/google?next=` — 유효한 `next`는 다음을 모두 만족해야 한다: `/`로 시작, 두 번째 글자가 `/`나 `\`가 아님, 어디에도 `\`를 포함하지 않음, 제어문자나 공백(U+0000–U+001F, U+007F, space)을 포함하지 않음, 앱 출처를 기준으로 URL로 파싱했을 때 결과가 다시 앱 출처가 됨(스킴도 호스트도 없음), 해석한 경로가 `//`로 시작하지 않음, `.`·`..` 세그먼트가 원문에도 퍼센트 디코딩한 형태에도 없음(O32, 2026-09-29 사용자 결정), 두 번째 글자·`\`·제어문자·공백 규칙도 퍼센트 디코딩한 경로에 다시 적용됨, 디코딩에 실패하는 경로는 거부됨(O32 리뷰, 2026-09-29 사용자 결정 범위 내 판정). 그 밖의 값은 무시하고 `/`로 간다. 서명된 state 쿠키에 담아 콜백 성공 시 그리로 감(쿼리 파라미터로 `auth=ok`를 덧붙이되, 기존 `auth` 값은 먼저 지우고 나머지 쿼리와 프래그먼트는 그대로 유지, O32, 2026-09-29 사용자 결정). state 쿠키가 3500바이트를 넘으면 `next`를 버린다(O32, 2026-09-29 사용자 결정) |
 | dev-login 검사 | `Origin`은 검사, CSRF 토큰은 요구하지 않음(세션이 아직 없음) |
 | 로그아웃 검사 | `Origin`만 검사. 세션·CSRF 토큰 없이도 204로 쿠키를 지운다(만료·손상된 세션도 로그아웃 가능) |
 | CSRF 쿠키 재발급 | 세션은 유효한데 `snu_csrf`가 없으면 `GET /me`가 새로 설정한다. 있으면 그대로 둔다 |
@@ -152,8 +156,10 @@ db/migrations/         goose SQL
 
 ### 4.2 사용자
 - `colleges(name PK, sort_order, is_active)` 시드.
-- `users(id, email, display_name, is_admin, college FK NULL, admission_year, last_ip inet NULL, session_epoch int DEFAULT 0, created_at, last_seen_at, deleted_at)`
-  - 스크럽 CHECK: `deleted_at`이 있으면 `email`, `display_name`, `college`, `admission_year`, `last_ip`가 NULL이고 `is_admin`은 false.
+- `users(id, email, display_name, is_admin, college FK NULL, admission_year, last_ip inet NULL, session_epoch int DEFAULT 0, created_at, last_seen_at, deleted_at, google_sub UNIQUE NULL)`
+  - `google_sub`는 마이그레이션 00002에서 추가한다.
+  - 살아 있는 계정은 이메일이나 sub 중 하나가 있어야 한다(`users_live_ck`). 재발급된 주소를 새 주인에게 넘긴 계정은 sub만 남고, 다음 로그인 때 현재 주소를 다시 받는다.
+  - 스크럽 CHECK: `deleted_at`이 있으면 `email`, `google_sub`, `display_name`, `college`, `admission_year`, `last_ip`가 NULL이고 `is_admin`은 false.
   - 탈퇴 시 `session_epoch`를 올린다. 기여 행의 `nickname`과 활동 로그는 유지한다.
 - 관리자 판정: `is_admin OR email ∈ ADMIN_EMAILS`. env 관리자는 콘솔에 `source: env`로 표시하고 회수 API는 409다. "마지막 관리자" 판단에 env 관리자도 세되, 로그인한 적 없는(계정이 없는) env 주소는 세지 않는다. 대시보드 `users.admins`도 같다.
 - 관리자가 아닌 계정의 회수는 404 `NOT_FOUND`.
@@ -221,22 +227,38 @@ db/migrations/         goose SQL
 ## 5. 동작
 
 ### 5.1 인증
-- `GET /auth/google` → state 쿠키(서명, 10분) → Google(`hd=snu.ac.kr`, `openid email profile`).
+- `GET /auth/google` → state 쿠키(`snu_oauth`, 서명, 10분, 경로 `/api/v1/auth/google`) → Google(`hd=snu.ac.kr`, `openid email profile`, PKCE S256, nonce).
+  - state 쿠키에는 state, nonce, PKCE 검증값, `next`, 만료가 들어간다. 콜백은 성공·실패와 관계없이 이 쿠키를 지운다.
   - `next`(선택): 다음을 모두 만족해야 state 쿠키에 담는다 — `/`로 시작, 두 번째 글자가 `/`나
     `\`가 아님, 어디에도 `\`를 포함하지 않음, 제어문자나 공백(U+0000–U+001F, U+007F, space)을
     포함하지 않음, 앱 출처를 기준으로 URL로 파싱했을 때 결과가 다시 앱 출처가 됨(스킴도 호스트도
-    없음). 그 밖의 값은 무시한다.
+    없음), 해석한 경로가 `//`로 시작하지 않음, `.`·`..` 세그먼트가 원문에도 퍼센트 디코딩한
+    형태에도 없음(O32, 2026-09-29 사용자 결정). 두 번째 글자·`\`·제어문자·공백 규칙도 퍼센트
+    디코딩한 경로에 대해 그대로 다시 검사한다 — 브라우저가 디코딩된 `\`나 탭 등을 정규화해 같은
+    공격이 되기 때문이다(예: `/%5Cevil`, `/%09/evil`). 디코딩에 실패하는 경로는 통과시키지 않고
+    거부한다(O32 리뷰, 2026-09-29 사용자 결정 범위 내 판정). 그 밖의 값은 무시한다. 이 조건을
+    만족해도, 서명한 state 쿠키 값이 3500바이트를 넘으면 `next`를 버리고 나머지 state로 다시
+    서명한다(O32, 2026-09-29 사용자 결정) — 로그인 자체는 그대로 되고 돌아갈 곳만 `/`가 된다.
 - `GET /auth/google/callback`
-  - state 검증 → 토큰 교환 → id_token 검증(서명, iss, aud, exp) → `email_verified`와 `@snu.ac.kr` 확인.
-  - 사용자 upsert. `last_seen_at`, `last_ip`를 갱신하고 env 관리자 표시를 붙인다.
+  - `error=access_denied`(사용자가 취소) → `/?auth=cancelled`. 다른 `error` → `/?auth=error`.
+  - state 검증 → 토큰 교환(PKCE 검증값) → id_token 검증(서명, iss, aud, exp, nonce) → `email_verified`, `hd=snu.ac.kr`, `@snu.ac.kr` 확인. 셋 중 하나라도 아니면 `/?auth=forbidden`.
+  - 사용자 찾기(한 트랜잭션, sub·이메일별 advisory lock):
+    - sub가 있는 계정: 이메일을 현재 값으로 갱신한다. 그 이메일을 다른 계정이 갖고 있으면, 그 계정은 재발급 전의 주인이므로 이메일을 내놓는다(sub는 유지).
+    - sub가 없고, 이메일이 sub 없는 계정(dev-login·가져오기로 만든 계정)의 것: 그 계정에 sub를 붙인다.
+    - sub가 없고, 이메일이 다른 sub의 계정 것: 그 계정이 이메일을 내놓고 새 계정을 만든다.
+    - sub가 있는 계정의 새 이메일을 sub 없는 계정이 갖고 있으면 자동으로 합칠 수 없으므로 `/?auth=error`로 끝내고 오류 로그를 남긴다.
+  - `last_seen_at`, `last_ip`를 갱신하고 env 관리자 표시를 붙인다. 표시 이름은 계정을 만들 때만 저장한다.
   - `login` 로그(ip 포함)를 남긴다.
   - 세션 쿠키와 CSRF 쿠키를 설정하고 `/?auth=ok`(state에 `next`가 있으면 그 경로로, 쿼리
-    파라미터로 `auth=ok`를 덧붙이되 기존 쿼리와 프래그먼트는 유지)로 리다이렉트한다. 실패 시
+    파라미터로 `auth=ok`를 덧붙이되 기존 `auth` 값은 먼저 지우고(키는 퍼센트 디코딩 후 비교,
+    O32, 2026-09-29 사용자 결정) 나머지 쿼리와 프래그먼트는 유지)로 리다이렉트한다. 실패 시
     SNU 외 계정은 `/?auth=forbidden`, 그 밖은 `/?auth=error`(현행과 같은 값).
 - 세션 쿠키 `snu_session`: `base64url(payload).sig`
-  - payload = `{uid, exp, ep}`
+  - payload = `{uid, exp, ep, at}`(`at`은 로그인 시각, 갱신해도 유지). HMAC에 쿠키 용도(`session`, `oauth-state`)를 함께 넣어 한 쿠키를 다른 용도로 쓸 수 없게 한다.
   - `SESSION_KEYS`의 첫 키로 서명하고 모든 키로 검증한다.
-  - 요청마다 `users`를 조회해 `deleted_at IS NULL`이고 `session_epoch = ep`인지 확인한다. `last_seen_at`은 최대 10분에 한 번만 갱신한다.
+  - 요청마다 `users`를 조회해 `deleted_at IS NULL`이고 `session_epoch = ep`이며 이메일이 있는지 확인한다. 이메일을 내놓은 계정은 다시 로그인해야 한다. `last_seen_at`은 최대 10분에 한 번만 갱신한다.
+  - 연장: 남은 시간이 `SESSION_TTL`의 절반 아래면 응답에 새 쿠키를 싣는다. 만료는 `min(지금 + SESSION_TTL, at + SESSION_MAX_AGE)`.
+  - 쿠키 속성: `HttpOnly`, `SameSite=Lax`, 경로 `/`. `Secure`는 `APP_ORIGIN`이 https일 때. 쓸 수 없게 된 세션 쿠키로 요청하면 401과 함께 쿠키를 지운다.
 - CSRF: `snu_csrf` 쿠키(읽기 가능)와 `X-CSRF-Token` 헤더를 비교한다(unsafe 메서드). `Origin` 헤더가 `APP_ORIGIN`과 다르면 거부한다.
   - 예외: `POST /auth/dev-login`은 `Origin`만 검사하고 CSRF 토큰은 요구하지 않는다(세션이 아직 없음).
   - 예외: `POST /auth/logout`도 `Origin`만 검사하고, 세션이 없거나 무효여도 204로 쿠키를 지운다. 위조된 로그아웃이 할 수 있는 일은 로그아웃뿐이다.
@@ -348,7 +370,8 @@ db/migrations/         goose SQL
 | `DB_MAX_CONNS` | 10 (Vercel 권장 2) | |
 | `DB_POOLER_MODE` | false | true면 pgx simple protocol, 문장 캐시 끔(Supabase 트랜잭션 풀러) |
 | `SESSION_KEYS` | – | 필수. 쉼표 구분 base64(32바이트 이상). 첫 키로 서명 |
-| `SESSION_TTL` | 168h | |
+| `SESSION_TTL` | 168h | 쿠키 한 장의 수명. 절반 아래로 남으면 연장 |
+| `SESSION_MAX_AGE` | 720h | 로그인 후 최대 수명. 연장해도 넘지 않는다. `SESSION_TTL`보다 짧으면 기동 실패 |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | – | 필수(dev-login만 쓸 때는 제외) |
 | `ADMIN_EMAILS` | – | 쉼표 구분 |
 | `DEV_LOGIN_ENABLED` | false | production이면 기동 실패 |
