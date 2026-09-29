@@ -18,6 +18,12 @@ const (
 	sessionPurpose = "session"
 	statePurpose   = "oauth-state"
 	stateTTL       = 10 * time.Minute
+
+	// maxStateCookieBytes keeps the sealed OAuth state cookie's value under
+	// the browser's per-cookie size limit (O32, 2026-09-29 user decision).
+	// A next path large enough to push the sealed value past it is dropped
+	// rather than issuing a cookie the browser would discard.
+	maxStateCookieBytes = 3500
 )
 
 // cookieJar issues and reads the server's cookies. Secure follows the app
@@ -87,10 +93,19 @@ type oauthState struct {
 	Exp      int64  `json:"e"`
 }
 
+// setState seals st into the state cookie. If a next this large would seal
+// past maxStateCookieBytes, it is dropped and the state is resealed without
+// it: sign-in still works, it just returns to / instead.
 func (j cookieJar) setState(w http.ResponseWriter, st oauthState) error {
 	tok, err := j.codec.Seal(statePurpose, st)
 	if err != nil {
 		return err
+	}
+	if len(tok) > maxStateCookieBytes && st.Next != "" {
+		st.Next = ""
+		if tok, err = j.codec.Seal(statePurpose, st); err != nil {
+			return err
+		}
 	}
 	http.SetCookie(w, j.cookie(stateCookie, tok, statePath, int(stateTTL/time.Second), true))
 	return nil

@@ -174,6 +174,24 @@ func TestGoogleCallbackOutcomes(t *testing.T) {
 	}
 }
 
+// TestGoogleSignInWithHugeNextDropsNext covers O32 (2026-09-29 user
+// decision): a next path that safeNext accepts, but whose JSON-escaped form
+// would blow past the state cookie's byte budget, is dropped so the state
+// cookie the browser sets stays under the limit; sign-in still succeeds and
+// returns to /.
+func TestGoogleSignInWithHugeNextDropsNext(t *testing.T) {
+	e := newEnv(t)
+	huge := "/" + strings.Repeat("<", 2000) // '<' JSON-escapes to <: 6 bytes each
+	rec := e.signIn(t, huge, kim)
+	if rec.Code != http.StatusFound || rec.Header().Get("Location") != appOrigin+"/?auth=ok" {
+		t.Fatalf("callback: %d %s", rec.Code, rec.Header().Get("Location"))
+	}
+	cs := cookies(rec)
+	if sess := cs["snu_session"]; sess == nil {
+		t.Fatalf("session cookie missing: %+v", cs)
+	}
+}
+
 func TestGoogleCallbackFailures(t *testing.T) {
 	e := newEnv(t)
 	start := e.spec.Do(t, e.srv, http.MethodGet, "/api/v1/auth/google", nil, nil)
