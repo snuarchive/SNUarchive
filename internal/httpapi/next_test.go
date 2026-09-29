@@ -44,8 +44,11 @@ func TestWithAuthOK(t *testing.T) {
 		"/search?q=x#top":  "/search?q=x&auth=ok#top",
 		"/a#b":             "/a?auth=ok#b",
 		"/search?":         "/search?auth=ok",
-		"/search?q=x&":     "/search?q=x&auth=ok",
 		"/p?q=%20#frag?x=": "/p?q=%20&auth=ok#frag?x=",
+		// A trailing "&" is a real, already-empty pair once the query is
+		// non-empty (unlike "/search?" above, which has no pairs at all):
+		// auth=ok is appended as a new pair after it, "&&" and all.
+		"/search?q=x&": "/search?q=x&&auth=ok",
 		// O32: an existing `auth` value (however it got there) is dropped
 		// before auth=ok is appended; the rest of the query and the
 		// fragment are kept exactly as written.
@@ -56,6 +59,10 @@ func TestWithAuthOK(t *testing.T) {
 		// O32 fix round 1: an empty pair from a doubled "&" is part of the
 		// query as written and is kept, not dropped.
 		"/x?a=1&&b=2": "/x?a=1&&b=2&auth=ok",
+		// O32 fix round 2: removing the auth pair leaves the already-empty
+		// pair that followed it; auth=ok is appended after that, not in
+		// its place.
+		"/x?auth=x&": "/x?&auth=ok",
 	} {
 		if got := withAuthOK(in); got != want {
 			t.Errorf("withAuthOK(%q) = %q, want %q", in, got, want)

@@ -184,7 +184,7 @@ func TestGoogleSignInNextSizeCap(t *testing.T) {
 	const maxStateCookieBytes = 3500
 	cases := []struct {
 		name     string
-		next     string // '<' JSON-escapes to <: 6 bytes each.
+		next     string // encoding/json HTML-escapes each '<' into a six-byte unicode escape.
 		wantNext bool
 	}{
 		{"just under the limit: kept", "/" + strings.Repeat("<", 400), true},

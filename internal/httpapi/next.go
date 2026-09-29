@@ -90,16 +90,19 @@ func hasDotSegment(path string) bool {
 	return false
 }
 
-// withAuthOK adds auth=ok to the query of a path from safeNext, keeping the
-// rest of the query and the fragment exactly as written — including an
-// empty pair from a doubled "&", such as in "/x?a=1&&b=2". Any existing
-// `auth` parameter is dropped first (O32, 2026-09-29 user decision): its key
-// is compared after percent-decoding, so an encoded spelling like `a%75th`
+// withAuthOK adds auth=ok to the query of a path from safeNext, keeping
+// every other pair exactly as written — including an empty pair from a
+// doubled "&", such as in "/x?a=1&&b=2", or one left behind by removing an
+// `auth` pair next to one, as in "/x?auth=x&" (the auth pair is deleted
+// outright and auth=ok is appended as a new, separate pair, so what's left
+// of the query is "" then "auth=ok": "&auth=ok"). Any existing `auth`
+// parameter is dropped first (O32, 2026-09-29 user decision): its key is
+// compared after percent-decoding, so an encoded spelling like `a%75th`
 // counts too.
 func withAuthOK(next string) string {
 	pathQuery, fragment, hasFragment := strings.Cut(next, "#")
 	path, query, hasQuery := strings.Cut(pathQuery, "?")
-	if !hasQuery {
+	if !hasQuery || query == "" {
 		out := path + "?auth=ok"
 		if hasFragment {
 			out += "#" + fragment
@@ -114,16 +117,8 @@ func withAuthOK(next string) string {
 		}
 		kept = append(kept, kv)
 	}
-	// strings.Join(strings.Split(query, "&"), "&") reproduces query
-	// exactly when nothing was removed, including any doubled "&"; only
-	// the appended "auth=ok" needs its own separator, and only when rest
-	// doesn't already end in one.
-	rest := strings.Join(kept, "&")
-	newQuery := rest + "auth=ok"
-	if rest != "" && !strings.HasSuffix(rest, "&") {
-		newQuery = rest + "&auth=ok"
-	}
-	out := path + "?" + newQuery
+	kept = append(kept, "auth=ok")
+	out := path + "?" + strings.Join(kept, "&")
 	if hasFragment {
 		out += "#" + fragment
 	}
