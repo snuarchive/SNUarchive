@@ -1,0 +1,32 @@
+{
+  "name": "snu-archive-mock-api",
+  "private": true,
+  "type": "module",
+  "description": "In-memory mock of the SNU Archive HTTP API (contract v2.0.0-draft) for frontend development.",
+  "packageManager": "pnpm@11.26.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "dev": "tsx watch src/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.1",
+    "hono": "^4.13.9"
+  },
+  "devDependencies": {
+    "@seriousme/openapi-schema-validator": "^2.11.0",
+    "@types/node": "^24",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
+    "openapi-backend": "^5.21.1",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.2",
+    "yaml": "^2.9.1"
+  }
+}

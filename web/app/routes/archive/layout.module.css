@@ -1,0 +1,184 @@
+.view {
+  display: grid;
+  grid-template-columns: 360px minmax(0, 1fr);
+  gap: 16px;
+  height: calc(100dvh - var(--nav-height));
+  overflow: hidden;
+  padding: var(--archive-pad-y) 24px;
+}
+
+.hasSelection {
+  height: auto;
+  min-height: calc(100dvh - var(--nav-height));
+  overflow: visible;
+}
+
+.pane {
+  position: sticky;
+  top: calc(var(--nav-height) + var(--archive-pad-y));
+  display: flex;
+  flex-direction: column;
+  align-self: start;
+  height: calc(100dvh - var(--nav-height) - (var(--archive-pad-y) * 2));
+  max-height: calc(100dvh - var(--nav-height) - (var(--archive-pad-y) * 2));
+  min-height: 0;
+  overflow: hidden;
+  padding: 24px;
+}
+
+.view:not(.hasSelection) .pane {
+  height: 100%;
+}
+
+/* On wide screens the pane never folds: hide the toggle and show the content
+   even when <details> is closed. */
+.pane::details-content {
+  display: contents;
+  content-visibility: visible;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  list-style: none;
+  /* Wide screens: the summary is only a heading. */
+  pointer-events: none;
+}
+
+.head::-webkit-details-marker {
+  display: none;
+}
+
+.headLabel {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.toggle {
+  display: none;
+}
+
+.toggle svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.2;
+  transition: transform 0.24s ease;
+}
+
+.pane[open] .toggle svg {
+  transform: rotate(180deg);
+}
+
+.content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.input {
+  margin-top: 16px;
+}
+
+.results {
+  display: grid;
+  align-content: start;
+  flex: 1;
+  gap: 10px;
+  min-height: 0;
+  margin-top: 16px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  padding: 6px 8px 18px;
+}
+
+.homeSection {
+  display: grid;
+  gap: 10px;
+}
+
+.homeSection h3 {
+  margin: 6px 0 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.detail {
+  min-width: 0;
+}
+
+@media (max-width: 1068px) {
+  .view {
+    grid-template-columns: 1fr;
+    height: auto;
+    min-height: calc(100dvh - var(--nav-height));
+    overflow: visible;
+  }
+
+  .pane {
+    position: static;
+    height: auto;
+    max-height: none;
+  }
+
+  .view:not(.hasSelection) .pane {
+    height: auto;
+  }
+
+  .pane::details-content {
+    display: block;
+    content-visibility: auto;
+  }
+
+  .pane:not([open])::details-content {
+    content-visibility: hidden;
+    display: none;
+  }
+
+  .head {
+    cursor: pointer;
+    pointer-events: auto;
+  }
+
+  .toggle {
+    display: inline-flex;
+  }
+
+  .results {
+    max-height: 320px;
+  }
+}
+
+@media (max-width: 734px) {
+  .view {
+    padding: 12px;
+  }
+}
+
+.homeHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.homeHead a {
+  color: var(--text-secondary);
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.homeHead a:hover {
+  color: var(--text-primary);
+}

@@ -1,0 +1,95 @@
+.page {
+  display: grid;
+  gap: 16px;
+  padding: 24px;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 24px;
+}
+
+.header p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.header h1 {
+  margin: 4px 0 0;
+  font-size: clamp(28px, 4vw, 40px);
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: 0;
+}
+
+.headerActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.tabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+
+.tabs a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 0 14px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.tabs a.active {
+  background: var(--text-primary);
+  color: var(--background-base);
+}
+
+/* Second level: lighter than the group tabs above it. */
+.subTabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  padding: 0 4px;
+}
+
+.subTabs a {
+  padding: 6px 0;
+  border-bottom: 2px solid transparent;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.subTabs a.active {
+  border-bottom-color: var(--brand-red);
+  color: var(--text-primary);
+}
+
+@media (max-width: 734px) {
+  .page {
+    padding: 12px;
+  }
+
+  .header {
+    display: grid;
+    padding: 16px;
+  }
+
+  .headerActions {
+    justify-content: start;
+  }
+}

@@ -1,0 +1,12 @@
+.more {
+  display: block;
+  padding: 10px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  text-align: center;
+  text-decoration: none;
+}
+
+.more:hover {
+  color: var(--text-primary);
+}

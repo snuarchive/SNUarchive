@@ -1,0 +1,163 @@
+/* Global tokens, reset and element defaults, carried over from the legacy
+   public/styles.css. Component styles live in *.module.css next to each
+   component; shared control styles in app/styles/ui.module.css. */
+
+:root {
+  --background-base: #000000;
+  --background-surface: #141414;
+  --background-raised: #181818;
+  --background-hover: #2f2f2f;
+  --text-primary: #ffffff;
+  --text-secondary: #b3b3b3;
+  --text-muted: #808080;
+  --brand-red: #e50914;
+  --brand-red-hover: #c11119;
+  --brand-red-active: #b00710;
+  --control-grey: rgba(109, 109, 110, 0.7);
+  --control-grey-hover: rgba(109, 109, 110, 0.9);
+  --line: #333333;
+  --soft-line: #242424;
+  --danger: #ff6b6b;
+  --nav-height: 52px;
+  --archive-pad-y: 16px;
+  font-family: "Netflix Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  background: var(--background-base);
+  color: var(--text-primary);
+  font-size: 16px;
+  line-height: 1.5;
+  letter-spacing: 0;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+  overflow-x: hidden;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  min-height: 38px;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+  text-decoration: none;
+  transition:
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease,
+    opacity 0.18s ease,
+    transform 0.12s ease;
+}
+
+button:not(:disabled):active {
+  transform: scale(0.98);
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--text-primary);
+  outline-offset: 2px;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  color: var(--text-muted);
+  opacity: 0.5;
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--background-base);
+  color: var(--text-primary);
+}
+
+input,
+select {
+  height: 42px;
+  padding: 0 12px;
+}
+
+select[multiple] {
+  height: auto;
+  padding: 6px 12px;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  width: auto;
+  height: auto;
+}
+
+input[type="file"] {
+  height: auto;
+  padding: 8px 12px;
+}
+
+textarea {
+  min-height: 84px;
+  padding: 12px;
+  resize: vertical;
+}
+
+label {
+  display: grid;
+  gap: 7px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  letter-spacing: 0;
+}
+
+main {
+  width: min(1440px, 100%);
+  margin: 0 auto;
+}
+
+a {
+  color: inherit;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+@media (max-width: 734px) {
+  body {
+    font-size: 15px;
+  }
+}
+
+/* Submit buttons that only matter without JavaScript (selects auto-submit). */
+.js .no-js-only {
+  display: none;
+}
