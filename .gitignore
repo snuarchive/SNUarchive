@@ -1,4 +1,5 @@
 .env
 node_modules/
-# Left on disk by the old Node app's local mode.
-.local-data/
+.vercel/
+
+/bin/
