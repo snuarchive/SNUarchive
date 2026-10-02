@@ -20,17 +20,19 @@
     await overview.playwright.locator("section.info > div.item").first().waitFor({ state: "visible", timeoutMs: 5000 });
     const identity = await overview.playwright.evaluate(() => {
       const items = Array.from(document.querySelectorAll("section.info > div.item"));
-      function field(label, selector) {
+      function field(label, selectors) {
         const matches = items.filter(item => item.querySelector(":scope > label")?.innerText === label);
-        if (matches.length !== 1) throw new Error("Course label missing or ambiguous");
-        const nodes = matches[0].querySelectorAll(selector);
-        if (nodes.length !== 1 || !nodes[0].getClientRects().length || !nodes[0].innerText.trim()) throw new Error("Course value missing or ambiguous");
-        return { text: nodes[0].innerText, locator: 'section.info > div.item with visible label "' + label + '" :: ' + selector };
+        if (matches.length !== 1 || !matches[0].querySelector(":scope > label").getClientRects().length) throw new Error("Course label missing or ambiguous");
+        const values = selectors.flatMap(selector => Array.from(matches[0].querySelectorAll(selector)).map(node => ({node, selector})));
+        // Accept only the two observed shapes, with exactly one value in total.
+        // Multiple/hidden/blank values never become a guessed professor identity.
+        if (values.length !== 1 || !values[0].node.getClientRects().length || !values[0].node.innerText.trim()) throw new Error("Course value missing or ambiguous");
+        return { text: values[0].node.innerText, locator: 'section.info > div.item with visible label "' + label + '" :: ' + values[0].selector };
       }
       const countLocator = document.querySelector("div.rating > div.title > span.count") ? "div.rating > div.title > span.count" : "section.empty.review > div.title > span.count";
       const counts = document.querySelectorAll(countLocator);
       if (counts.length !== 1 || !counts[0].getClientRects().length) throw new Error("Displayed review count unavailable");
-      return { title: field("과목명", ":scope > a.link"), instructor: field("교수명", ":scope > div.multiline > a.link"), count_text: counts[0].innerText, count_locator: countLocator };
+      return { title: field("과목명", [":scope > a.link"]), instructor: field("교수명", [":scope > div.multiline > a.link", ":scope > span.text"]), count_text: counts[0].innerText, count_locator: countLocator };
     });
     await ensure(overview, base);
     if (identity.title.text !== target.title || identity.instructor.text !== target.instructor) throw new Error("Visible course identity differs from expected target");
