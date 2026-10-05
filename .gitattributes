@@ -1,0 +1,2 @@
+# The SQL contract is pinned by byte checksum across operating systems.
+crawler/everytime_local_runner/schema.sql -text
