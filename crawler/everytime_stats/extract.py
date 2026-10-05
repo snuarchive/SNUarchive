@@ -9,8 +9,11 @@ from decimal import Decimal
 from .models import FIELDS, SCHEMA_VERSION, digest, evidence
 from .quantities import classify_quantity
 from .validate import check_evidence, validate_record
+from .score_scales import hold_ambiguous_scales
+from .numeric_semantics import (numeric_guard, maximum_guard, parentheses,
+                                same_parenthetical_scope, component_context, AGGREGATE, MALFORMED_MAX)
 
-RULE_VERSION = "0.1.6"
+RULE_VERSION = "0.1.8"
 NUM = r"\d+(?:\.\d+)?"
 UNIT = re.compile(
     r"(?P<mid>중간(?:고사)?)(?!값|중간)(?:\s*(?P<midn>[1-6])(?![\d./]|\s*(?:/|점|%|등|명|개|회|번|문제|년|월|일|시|분)))?"
@@ -52,6 +55,12 @@ UNCERTAIN_TAIL = re.compile(r"\s*점?\s*(?:인가(?:\s*(?:그랬|싶|기억))?|�
 def _mention_role(unit, line, offset):
     """Separate an assessment anchor from comparison/source/background nouns."""
     before, after = line[:unit["start"]-offset], line[unit["end"]-offset:]
+    # Confirmed defect: in "기말은 중간이 어려워서 ... Q3 180", the
+    # second noun explains the final's difficulty; it is not a new midterm.
+    if (unit["kind"] in ("midterm", "final") and
+            re.search(r"(?:중간(?:고사)?|기말(?:고사)?)\s*(?:은|는)\s*$", before) and
+            re.match(r"\s*(?:이|가)\s*(?:어려워서|쉬워서)", after)):
+        return "reference"
     if re.match(r"\s*(?:보다|에\s*비해|와\s*(?:비교|동일|비슷|다르|다르게|연계)|처럼|[에애]서.{0,16}(?:나온|낸|나오|출제|한\s*문제))", after):
         return "reference"
     if unit["kind"] in ("midterm", "final") and re.match(r"\s*(?:(?:중간|기말)\s*)?(?:발표|레포트|보고서|프로젝트)", after):
@@ -156,6 +165,7 @@ def extract_comment(comment):
     handled = []
     personal = []
     non_score = []
+    bracket_ranges = parentheses(text)
     for pattern in (PERSONAL_Q, OFFSET, PERSONAL_FULL):
         for m in pattern.finditer(text):
             handled.append((m.start(), m.end()))
@@ -194,7 +204,12 @@ def extract_comment(comment):
                 last_heading = units[0]
 
             def targets(position):
-                before = [u for u in units if u["end"] <= position]
+                aggregate = AGGREGATE.search(text[la:position])
+                if aggregate:
+                    return [{"kind": None, "number": None, "composite": True,
+                             "raw_label": aggregate.group(), "start": la+aggregate.start(), "end": position}]
+                before = [u for u in units if u["end"] <= position and
+                          same_parenthetical_scope(u["start"], position, bracket_ranges)]
                 unit = before[-1] if before else last_heading
                 joint = []
                 if len(before) >= 2:
@@ -211,18 +226,21 @@ def extract_comment(comment):
             def get_record(position, unit):
                 component = None
                 component_span = None
+                unclear_component = False
                 # Only explicit local component context; new exam anchors reset it.
                 boundary = max(la, unit["end"] if unit and unit["end"] <= position else la)
                 part_matches = list(PART.finditer(text[boundary:position]))
                 if part_matches:
                     pm = part_matches[-1]
                     tail = text[boundary+pm.end():position]
-                    if len(tail) <= 95 and not re.search(r"문제.*(?:나옵|출제|그래서)|통계량", tail):
+                    context = component_context(tail)
+                    unclear_component = context == 'descriptive'
+                    if context == 'local' and len(tail) <= 95 and not re.search(r"문제.*(?:나옵|출제|그래서)|통계량", tail):
                         component = None if pm.group() == "전체" else pm.group()
                         component_span = (boundary+pm.start(), boundary+pm.end())
                 elif not units and inherited_component:
                     component, component_span = inherited_component
-                scope = "section" if component else "composite" if unit and unit["composite"] else "whole" if unit and unit["kind"] else "unknown"
+                scope = "unknown" if unclear_component else "section" if component else "composite" if unit and unit["composite"] else "whole" if unit and unit["kind"] else "unknown"
                 kind = unit["kind"] if unit else None
                 number = unit["number"] if unit else None
                 year, semester, term_ev, reasons = _term(text, (pa, pb), position, unit)
@@ -296,6 +314,11 @@ def extract_comment(comment):
                 field = re.sub(r"\s", "", m["q"].lower()) if m["q"] else "average" if m["average"] else "q2" if m["median"] else "observed_max"
                 tail = text[b:min(lb, b+65)]
                 prefix = text[max(la, a-20):a]
+                guard = numeric_guard(text, a, b, b, la, lb)
+                if guard:
+                    ca, cb, reason = guard
+                    candidate(ca, cb, reason, field=field, uncertain_expression=text[ca:cb])
+                    continue
                 if re.match(r"[,.]\d", tail):
                     candidate(a, min(lb, b+25), "unsupported_number_format")
                     continue
@@ -327,7 +350,10 @@ def extract_comment(comment):
                 if APPROXIMATE_TAIL.match(qualifier_tail) or re.search(r"대충|약\s*$", prefix):
                     candidate(a, min(lb, b+25), "approximate_value")
                     continue
-                if re.match(r"(?:\s+|\s*[,;]\s*)\d+(?:\.\d+)?", tail) and not re.match(r"(?:\s+|\s*[,;]\s*)\d+(?:\.\d+)?\s*점?\s*만점", tail):
+                # The number in ", 2차 Q3 ..." is an explicit next exam
+                # anchor, not an unlabelled second value for this Q3.
+                next_ordinal = re.match(r"(?:\s+|\s*[,;]\s*)\d{1,2}\s*차", tail)
+                if re.match(r"(?:\s+|\s*[,;]\s*)\d+(?:\.\d+)?", tail) and not next_ordinal and not re.match(r"(?:\s+|\s*[,;]\s*)\d+(?:\.\d+)?\s*점?\s*만점", tail):
                     candidate(a, min(lb, b+30), "multiple_unlabelled_values")
                     continue
                 clause = re.split(r"[/,;]|(?<!\d)\.(?!\d)", line[:m.start()])[-1]
@@ -341,9 +367,18 @@ def extract_comment(comment):
                 add(a, b, field, raw, "explicit_stat_label", unit_state="score", unit_basis=basis)
                 population_spans.append((a, b))
 
+            for m in MALFORMED_MAX.finditer(line):
+                candidate(la+m.start(), la+m.end(), 'malformed_numeric', field='max_score', uncertain_expression=m.group())
+
             for m in MAXIMUM.finditer(line):
                 a, b = la+m.start(), la+m.end()
                 if any(e["start"] <= a and b <= e["end"] for e in personal) or any(u["start"] <= a < u["end"] for u in units):
+                    continue
+                group = 'before' if m['before'] else 'after'
+                guard = numeric_guard(text, a, la+m.end(group), b, la, lb) or maximum_guard(text, a, b, la, lb)
+                if guard:
+                    ca, cb, reason = guard
+                    candidate(ca, cb, reason, unit_targets=targets(a), field='max_score', uncertain_expression=text[ca:cb])
                     continue
                 if re.match(r"[,.]\d", text[b:lb]):
                     candidate(a, min(lb, b+25), "unsupported_number_format")
@@ -375,7 +410,12 @@ def extract_comment(comment):
                     for sa, sb in population_spans
                 )
                 if linked:
-                    add(a, b, "max_score", m["max"], "score_denominator_with_population_stat", own_targets)
+                    guard = numeric_guard(text, a, la+m.end('max'), b, la, lb)
+                    if guard:
+                        ca, cb, reason = guard
+                        candidate(ca, cb, reason, unit_targets=own_targets, field='max_score', uncertain_expression=text[ca:cb])
+                    else:
+                        add(a, b, "max_score", m["max"], "score_denominator_with_population_stat", own_targets)
 
             # Every remaining marker is explicitly represented for review.
             # No match is not evidence of "no statistics".
@@ -396,7 +436,8 @@ def extract_comment(comment):
                 parts = list(PART.finditer(text[boundary:lb]))
                 if parts and (not units or len(units) == 1):
                     pm = parts[-1]
-                    inherited_component = (None if pm.group() == "전체" else pm.group(), (boundary+pm.start(), boundary+pm.end()))
+                    if component_context(text[boundary+pm.end():lb]) == 'local':
+                        inherited_component = (None if pm.group() == "전체" else pm.group(), (boundary+pm.start(), boundary+pm.end()))
             if len({(u["kind"], u["number"]) for u in units}) > 1:
                 # A later bare statistic must not inherit the first of multiple
                 # mentioned assessments. Keep its identity unresolved instead.
@@ -408,6 +449,7 @@ def extract_comment(comment):
         del rec["_conflicts"]
         validate_record(rec)
         check_evidence(rec, text)
+    result = hold_ambiguous_scales(result, text)
     classification = "review_required" if any(r["status"] == "review_required" for r in result) else "accepted" if result else "excluded"
     excluded = None
     if not result:
