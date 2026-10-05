@@ -1,0 +1,136 @@
+{
+  "sources": [
+    {
+      "file": "2021학년도_1학기_강좌검색.xls",
+      "sha256": "3bd660672ac9d29efb91939726cc7ed34548a112601245cc4c218bb9a80e7152",
+      "total_rows": 7516,
+      "imported_rows": 7516,
+      "output": "2021-1.json"
+    },
+    {
+      "file": "2021학년도_2학기_강좌검색.xls",
+      "sha256": "98b2fa9910fcd7602a634874c69410c40187d231c7c7e5baf81fda232c0a72be",
+      "total_rows": 7498,
+      "imported_rows": 7498,
+      "output": "2021-3.json"
+    },
+    {
+      "file": "2021학년도_겨울학기_강좌검색.xls",
+      "sha256": "a663478c9b4e857d10dba8226c06ae065770a1699bbcc8143165c378d8c9d6e7",
+      "total_rows": 255,
+      "imported_rows": 255,
+      "output": "2021-4.json"
+    },
+    {
+      "file": "2021학년도_여름학기_강좌검색.xls",
+      "sha256": "7c665462870ebec62a953cdbf77310fa02e25be888fb80988e50d76b97d573f7",
+      "total_rows": 340,
+      "imported_rows": 340,
+      "output": "2021-2.json"
+    },
+    {
+      "file": "2022학년도_1학기_강좌검색.xls",
+      "sha256": "42368010b697a9fb82b1b2524e769e3d636e29e0fa54519148f7939a55a32d18",
+      "total_rows": 7493,
+      "imported_rows": 7493,
+      "output": "2022-1.json"
+    },
+    {
+      "file": "2022학년도_2학기_강좌검색.xls",
+      "sha256": "e7f317f45dc31c372911513a419e92fbc94a9676bd6525a4ece158e2f2abb3ee",
+      "total_rows": 7414,
+      "imported_rows": 7414,
+      "output": "2022-3.json"
+    },
+    {
+      "file": "2022학년도_겨울학기_강좌검색.xls",
+      "sha256": "db9f79758b0c5d4c24f3f72ecf93e335f8a5f8780669a866cf1642552308d096",
+      "total_rows": 254,
+      "imported_rows": 254,
+      "output": "2022-4.json"
+    },
+    {
+      "file": "2022학년도_여름학기_강좌검색.xls",
+      "sha256": "98e4678a1a6c47980f0fe144ebb84f2ec891b24f36b79e5afcf8925b468cc46b",
+      "total_rows": 296,
+      "imported_rows": 296,
+      "output": "2022-2.json"
+    },
+    {
+      "file": "2023학년도_1학기_강좌검색.xls",
+      "sha256": "25c963862a890f9a52f52e5ca837a2b68164ba94f1a017c9d394adc555eea858",
+      "total_rows": 7482,
+      "imported_rows": 7482,
+      "output": "2023-1.json"
+    },
+    {
+      "file": "2023학년도_2학기_강좌검색.xls",
+      "sha256": "d48ae983622c9fd07e747d835b25624cd104b612175035d7a586d5ac2ff52a60",
+      "total_rows": 7378,
+      "imported_rows": 7378,
+      "output": "2023-3.json"
+    },
+    {
+      "file": "2023학년도_겨울학기_강좌검색.xls",
+      "sha256": "9532127d8bbfc7099e44b373f5c4950554abdbfd4b3169422ea2788c7cfa1d09",
+      "total_rows": 237,
+      "imported_rows": 237,
+      "output": "2023-4.json"
+    },
+    {
+      "file": "2023학년도_여름학기_강좌검색.xls",
+      "sha256": "44ced9c313e8d28858bc4b99d38d3df4a25d0675127caf3efeb0ca514d6c820b",
+      "total_rows": 308,
+      "imported_rows": 308,
+      "output": "2023-2.json"
+    },
+    {
+      "file": "2026학년도 2학기.xls",
+      "sha256": "a090413d05480507c660daadf73a28e1c0abe500064c1ed2e0ae7a30a4265b2b",
+      "total_rows": 8536,
+      "imported_rows": 8536,
+      "output": "2026-3.json"
+    },
+    {
+      "file": "2026학년도_1학기_강좌검색.xls",
+      "sha256": "e8fd9ba1d2554df0f4d3d2322d9bb6957168bbb8ca04057ff4694e37b6ee7cc2",
+      "total_rows": 7733,
+      "imported_rows": 6,
+      "output": "2026-1.json"
+    },
+    {
+      "file": "2026학년도_여름학기_강좌검색.xls",
+      "sha256": "9ad7033aecc0fec51962e4ad839e15dc7e58ef6c34a5e10e9729830629687301",
+      "total_rows": 356,
+      "imported_rows": 356,
+      "output": "2026-2.json"
+    }
+  ],
+  "imported_rows": 55369,
+  "missing_semesters": 14,
+  "supplemental_sections": 6,
+  "semester_codes": {
+    "1학기": 1,
+    "여름학기": 2,
+    "2학기": 3,
+    "겨울학기": 4
+  },
+  "policy": "Additive only. Original inputs and ambiguous label variants are not replaced.",
+  "outputs": {
+    "2021-1.json": "212771cc77d46eda00c049dca2a375bfa4cf861ef810700322461f004e97317a",
+    "2021-3.json": "73f0e9e3dd39a502fa91b319356c2e841bdd87bf47f0b416125f017f43fa393f",
+    "2021-4.json": "04a06897ea3f383d49a12fcb4fed43cf2f1fcc8ab972e49000d063cd2ce766a6",
+    "2021-2.json": "2586b6d2bb53ad83b28e89e59be8255c36bacb9d13ec5828c18c7899bdc305be",
+    "2022-1.json": "d6ebdb36b3a81fec965102024142ddaedc2f0bb9f27d363d408dc818674f2750",
+    "2022-3.json": "b2a2764e4a4771dcb67c5bc95e863d0c29da834235e40ee104c1d0511dfe3f4b",
+    "2022-4.json": "0045fb7085fa6bc41060f904081ecdd831871130ec195b8cf2304050f4cb124b",
+    "2022-2.json": "b8ad5625defc9024974708255954def5e49fac2d2acb2816b437d8e9e29a8329",
+    "2023-1.json": "e22466b4b40adf76efe5756db49ab9de7c06afdcc2a317af88d224a6cc2fc1c2",
+    "2023-3.json": "2c549823ba1f9ca20cd39bbbde77677a7c6212f33e9afbdfb4d29ddfc408a1d4",
+    "2023-4.json": "b74ba900f54ed75309fb238d5bfd8fcfc6f531eb992db328dc65e5e110824b22",
+    "2023-2.json": "e1029f705b344f5bc48f169fe10c228a8a9a0d8e9240e2834b358fa4a7436189",
+    "2026-3.json": "6a30caed485aea2c63e409324b0fd685863845c509d6e36ec96c65c78b607996",
+    "2026-1.json": "4e5a7217e10a14d0dac9d75e7aa99392c625653300b09a338d8260d4fda50d33",
+    "2026-2.json": "00802904580e1b6d9d3fe960f9b482304cd18f51ce35772d745c124e9887cfd4"
+  }
+}

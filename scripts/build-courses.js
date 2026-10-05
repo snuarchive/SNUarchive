@@ -37,6 +37,15 @@ const files = fs
   .filter((file) => /^20\d{2}-[1-4]\.json$/.test(file))
   .sort();
 
+// Additive imports follow the original inputs so existing display names stay stable.
+const supplementDir = path.join(root, "data", "course-supplements");
+if (fs.existsSync(supplementDir)) {
+  files.push(...fs.readdirSync(supplementDir)
+    .filter((file) => /^20\d{2}-[1-4]\.json$/.test(file))
+    .sort()
+    .map((file) => path.join("data", "course-supplements", file)));
+}
+
 if (!files.length) {
   throw new Error("No semester JSON files found in project root.");
 }
