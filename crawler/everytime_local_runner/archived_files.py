@@ -34,6 +34,24 @@ def read_bytes(path):
     try:
         return path.read_bytes()
     except FileNotFoundError:
+        compact_root = os.environ.get('EVERYTIME_COMPACT_ROOT')
+        if compact_root:
+            root = Path(compact_root).resolve()
+            try:
+                parts = path.resolve().relative_to(root).parts
+            except ValueError:
+                parts = ()
+            if len(parts) > 1 and parts[0].startswith('priority_'):
+                zipped = root / (parts[0] + '.zip')
+                if zipped.is_file():
+                    import hashlib
+                    with ZipFile(zipped) as z:
+                        name = '/'.join(parts[1:])
+                        checksums = json.loads(z.read('_compact_checksums.json'))
+                        data = z.read(name)
+                        if hashlib.sha256(data).hexdigest() != checksums[name]:
+                            raise ValueError('Compact source checksum mismatch')
+                        return data
         try:
             relative = path.resolve().relative_to(LEGACY_ROOT.resolve())
         except ValueError:

@@ -14,7 +14,7 @@ function failure(kind,code){return Object.assign(new Error(kind+': '+code),{kind
 async function openSession(run, {viewportHeight=900}={}) {
   // Browser cache/profile writes occur on a different volume from raw output.
   // Fail closed before launch and throughout collection on either low volume.
-  storagePreflight(profile);
+  storagePreflight(profile,undefined,{profile:true});
   storagePreflight(run);
   if(!Number.isInteger(viewportHeight)||viewportHeight<900||viewportHeight>1200)throw failure('failed','invalid_viewport_height');
   if(fs.existsSync(stopMarker))throw failure('blocked','prior_access_stop');
@@ -44,7 +44,7 @@ async function openSession(run, {viewportHeight=900}={}) {
     }while(true);
   }
   async function check({allowLogin=false}={}){
-    storagePreflight(profile);
+    storagePreflight(profile,undefined,{profile:true});
     storagePreflight(run);
     await ready();let state;
     try{state=await inspect(page);}catch(error){if(controller.terminal)throw failure('blocked',controller.terminal.code);throw error;}

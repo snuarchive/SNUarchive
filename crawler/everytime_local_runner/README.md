@@ -2,6 +2,23 @@
 
 ## Checkout 및 오프라인 검증
 
+### Compact continuation storage
+
+For an explicitly prepared continuation, `EVERYTIME_COMPACT_ROOT` must equal
+`EVERYTIME_LOCAL_OUTPUT_ROOT`. That new root must contain `compact_policy.json`
+with `{"version":1,"minimum_free_gib":20}`. This mode packs each finished
+`priority_*` run into its own ZIP, checks every archived and staging checksum,
+then removes only the newly generated staging copies. `search.json` remains live
+for the UI search cache. Existing Computer Use archives and earlier campaigns
+are not eligible for this cleanup. Readers resolve original provenance paths
+through the ZIP and recheck member checksums without extracting onto another drive.
+
+Only this opt-in mode permits allocation units up to 512 KiB, with a 20 GiB free
+space reserve checked throughout collection. The browser profile volume is also
+checked. A packing/validation failure halts the runner; do not automatically retry
+or delete the retained staging evidence. This is storage packing, not a change to
+site access limits, identity matching, review parsing, or completion rules.
+
 Python 의존성은 `crawler/requirements.txt`, Node 의존성은 이 디렉터리의 `package-lock.json`으로 설치한다. 학기 XLS 변환에는 `scripts/requirements-catalog.txt`를 사용한다.
 
 ```powershell

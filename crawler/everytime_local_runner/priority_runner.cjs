@@ -14,6 +14,13 @@ const {storagePreflight}=require('./storage_preflight.cjs');
 const performancePolicy=Object.freeze({version:1,wheel_settle_ms:150,review_idle_wait_ms:1000,
   search_idle_wait_ms:2000,between_courses_ms:1500});
 const repo=path.resolve(__dirname,'../..'),output=require('./output_root.cjs').outputRoot(repo);
+function compactStep(python,step){
+  if(!process.env.EVERYTIME_COMPACT_ROOT)return;
+  if(path.resolve(process.env.EVERYTIME_COMPACT_ROOT)!==output)throw Error('Compact root differs');
+  const r=spawnSync(python,['-X','utf8','-B','-m','crawler.everytime_local_runner.compact_storage','--run',step,'--root',output],
+    {cwd:repo,encoding:'utf8',windowsHide:true,maxBuffer:1024*1024});
+  if(r.status!==0)throw failure('failed','compact_storage_failed');
+}
 function offline(python,root,command,extra=[]){
   const r=spawnSync(python,['-X','utf8','-B','-m','crawler.everytime_local_runner.campaign',command,'--root',root,...extra],
     {cwd:repo,encoding:'utf8',windowsHide:true,maxBuffer:32*1024*1024});
@@ -126,6 +133,7 @@ async function main(){
             reviews_saved:0,files:{...fallbackEvidence,[evidence]:crypto.createHash('sha256').update(fs.readFileSync(evidence)).digest('hex')}});
           offline(python,root,'finish',['--item',entry.item_id,'--input',receipt]);
           currentRecorded=true;
+          compactStep(python,step);
           console.log(JSON.stringify({event:'course_finished',item:entry.item_id,status:'needs_review',reason:observed.limited.reason,reviews:0}));
           await delay(performancePolicy.between_courses_ms);
           continue;
@@ -145,6 +153,7 @@ async function main(){
         offline(python,root,'finish',['--item',entry.item_id,'--input',receipt]);
         currentRecorded=true;
         timing.total_ms=Date.now()-began;writeNew(path.join(step,'timing.json'),timing);
+        compactStep(python,step);
         console.log(JSON.stringify({event:'course_finished',item:entry.item_id,status:result.status,reviews:0}));
         continue;
       }
@@ -170,6 +179,7 @@ async function main(){
       currentRecorded=true;
       timing.finalize_and_record_ms=Date.now()-phaseBegan;timing.total_ms=Date.now()-began;
       writeNew(path.join(step,'timing.json'),timing);
+      compactStep(python,step);
       console.log(JSON.stringify({event:'course_finished',item:entry.item_id,status:result.status,reviews:result.reviews_saved}));
       if(guardError)throw guardError;
       if(result.status==='blocked')throw failure('blocked','collector_access_stop');
