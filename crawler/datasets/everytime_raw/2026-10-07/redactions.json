@@ -1,0 +1,15 @@
+{
+  "format": "everytime_email_redaction_v1",
+  "user_authorized": true,
+  "replacement": "[EMAIL_REDACTED]",
+  "review_count": 1,
+  "string_occurrences": 2,
+  "reason": "Email volunteered in review; removed from public delivery copy at user request.",
+  "source_file_sha256": "2a6e6e501c307560bc1f06920d54ead4ab2ff87b69fa7716d8572c03e98c46a6",
+  "published_file_sha256": "df9b4ecd3fad5360dc873c4bdff21500b9b47755450a8b155056a3d06654399c",
+  "review_json_pointer": "/reviews/0",
+  "scope": "Exact email replacement in review text and matching evidence only; all other source bytes unchanged.",
+  "local_originals_preserved": true,
+  "fingerprints_recomputed": true,
+  "capture_ids_and_report_hashes": "Source provenance retained; capture grouping hashes recomputed from delivered review references."
+}

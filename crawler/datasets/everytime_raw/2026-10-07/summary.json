@@ -1,0 +1,39 @@
+{
+  "format": "everytime_raw_handoff_masked_v1",
+  "catalog_combinations": 31957,
+  "catalog_site_urls": 29044,
+  "capture_count": 29658,
+  "capture_source_raw_files": 13384,
+  "unique_raw_documents": 13384,
+  "all_review_occurrences": 126381,
+  "representative_capture_count": 28801,
+  "selected_review_occurrences": 121809,
+  "excluded_exact_repeat_occurrences": 4572,
+  "uncertain_capture_pairs": 8,
+  "partial_captures": 9,
+  "raw_bytes": 222134727,
+  "raw_zip_parts": 9,
+  "capture_statuses": {
+    "complete": 29645,
+    "partial": 9,
+    "complete_for_observed_ui": 4
+  },
+  "catalog_outcomes": {
+    "complete": 9336,
+    "empty": 16895,
+    "needs_review": 1302,
+    "not_found": 4424
+  },
+  "raw_documents_preserved_byte_for_byte": false,
+  "site_review_ids_available": false,
+  "unique_real_reviews_claimed": false,
+  "extractor_outputs_included": false,
+  "profiles_sessions_cookies_included": false,
+  "source_verification_manifest_sha256": "f91f0c31d1763b5902be13d75103af8ba24d925705c5a67375c7142fca8f2329",
+  "source_raw_bytes": 222134729,
+  "unchanged_raw_documents": 13383,
+  "masked_raw_documents": 1,
+  "masked_reviews": 1,
+  "masked_email_occurrences": 2,
+  "local_originals_preserved": true
+}

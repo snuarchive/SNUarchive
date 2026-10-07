@@ -1,0 +1,30 @@
+{
+  "format": "everytime_raw_handoff_masked_v1",
+  "hash_algorithm": "sha256",
+  "files": {
+    ".gitattributes": "705fd4d6451a31d36b3df7de96f83f30ac976c9b4a6d1e51671d8e2f33e2d0da",
+    "capture_groups.jsonl.gz": "c3a7570d3aec37961239b05eb4bc28202fa947e4fa36d1e08b4efc67eda4d7d5",
+    "captures.jsonl.gz": "e7348ce186aefda4bd32b9dc56f1f0e87c3e31f90b3ad75e0ebb195cc99b472f",
+    "catalog_outcomes.jsonl.gz": "b9904d192bf560642bd64b98b77873074a1bad958f7317971500211d0092cfaa",
+    "course_catalog.jsonl.gz": "3306c0153bd078d8babd9c9c95bea2fa7791635b546fa5f3d294806efa8a62d4",
+    "raw-001.zip": "1f915db304460fc5ea39614c12ce769f35864bb312a72cd5832514fa621070c2",
+    "raw-002.zip": "f09b04dd28bb2a99f8fda2dd7a431e6e25682bb1062a01056a253f2452ad5156",
+    "raw-003.zip": "0ba0533d863a9db192a4e6715951ad81b410341c8911c5cd85f468e4bfb446ce",
+    "raw-004.zip": "51c35ae8b03067ef2ed32906df68ffa8ccc39e63bfcda83251ff218eb95d332b",
+    "raw-005.zip": "c0688451cfef9553fc4b24822aa990f3845bf231dd6e71900ca3389fd61e7203",
+    "raw-006.zip": "8a274a9ae0983b62c4eb54f27475c72cb9a52381dd876678de63f0400f06a665",
+    "raw-007.zip": "cbd9b9ccccee7953692acbc188f700507ae9751cbf421d5c94d981cd46202cc3",
+    "raw-008.zip": "8e126dc20e15fad1fe3844e4b2f53ecf50e86360c3c6026da31fc315f12e90d1",
+    "raw-009.zip": "20df2160ce65d423529fadc493c01a36ea3ed72ccf50ea3a5d782dcc25bfecc5",
+    "raw_files.jsonl.gz": "d4ee859a1c73017121900b1d9afbaa72eb79e884959089b310bf8e6ef1e4638f",
+    "read_raw.py": "067367f0146b6adfd40f010f04d7af2b65cbd4698a4e8e9d2463280fd53ff521",
+    "README.md": "02fd820d8f701368663bc13bb23ee4f436f39a41475073b9a86964524138190f",
+    "redactions.json": "6c4a3b7d741d5edb470f0cbd732a9e94f26c899efc1ec9cfb430690e627d102b",
+    "summary.json": "33e145705aca1d7dbed463332fcb9e97e03e341e763b015991ed9505862f5309",
+    "uncertain_capture_pairs.jsonl.gz": "62ddfcbb5c6aa75fcae66693bfbd4de6a4694a0867521d646581143ff74f3ef2"
+  },
+  "raw_documents_preserved_byte_for_byte": false,
+  "unchanged_raw_documents": 13383,
+  "masked_raw_documents": 1,
+  "local_originals_preserved": true
+}
