@@ -186,6 +186,15 @@ export function adminModerationScenarios(h: H) {
           (await admin.post(`/admin/reports/${report.id}/approve`, { json }))
             .status,
         ).toBe(400);
+      // Only number takes null; null for the rest is malformed, not "keep".
+      for (const key of ["kindId", "year", "semester"])
+        expect(
+          (
+            await admin.post(`/admin/reports/${report.id}/approve`, {
+              json: { [key]: null, average: 1 },
+            })
+          ).json.error.code,
+        ).toBe("MALFORMED_REQUEST");
       const override = await admin.post(`/admin/reports/${report.id}/approve`, {
         json: { kindId: KIND.quiz, number: 5, average: 7, maxScore: 10 },
       });

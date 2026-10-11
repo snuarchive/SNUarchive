@@ -13,7 +13,7 @@ import {
   log,
   votingState,
 } from "../domain";
-import { conflict, malformed, notFound } from "../errors";
+import { conflict, FieldErrors, malformed, notFound } from "../errors";
 import { int, pathId, readJson } from "../input";
 import { COLLEGES } from "../refdata";
 import type { S } from "../types";
@@ -185,7 +185,11 @@ export function consoleRoutes(ctx: Ctx) {
   r.post("/admin/admins", guard(ctx, "adminWrite"), async (c) => {
     const admin = me(c);
     const userId = int(await readJson(c, ["userId"]), "userId");
-    if (userId === undefined) throw malformed("userId가 필요합니다.");
+    if (userId === undefined) {
+      const fe = new FieldErrors();
+      fe.add("userId", "REQUIRED");
+      fe.throwIfAny();
+    }
     const user = findUser(ctx, userId!);
     if (!user || user.deletedAt) throw notFound("계정을 찾을 수 없습니다.");
     if (!user.dbAdmin) {

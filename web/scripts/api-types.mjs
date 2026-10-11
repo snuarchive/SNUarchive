@@ -29,7 +29,7 @@ execFileSync("pnpm", ["exec", "openapi-typescript", spec, "-o", out], {
 });
 
 const header =
-  `// Contract ${version ?? "unknown"} from go-backend commit ${commit}` +
+  `// Contract ${version ?? "unknown"} from commit ${commit}` +
   `${dirty ? " (with uncommitted changes)" : ""}.\n` +
   "// Regenerate with `pnpm api:types`; do not edit by hand.\n";
 writeFileSync(out, header + readFileSync(out, "utf8"));

@@ -168,6 +168,12 @@ export function consoleScenarios(h: H) {
         (await admin.post("/admin/admins", { json: { userId: UNKNOWN_ID } }))
           .status,
       ).toBe(404);
+      // A missing or null userId is 422 REQUIRED, like any required field.
+      for (const json of [{}, { userId: null }])
+        expect(
+          (await admin.post("/admin/admins", { json })).json.error.details
+            .fields,
+        ).toEqual([{ field: "userId", code: "REQUIRED" }]);
       // A deleted (scrubbed) account is 404, like an unknown one.
       const deleted = await admin.post("/admin/admins", {
         json: { userId: r.deletedUser.id },

@@ -95,6 +95,11 @@ export function adminModerationRoutes(ctx: Ctx) {
         "nickname",
         "reviewNote",
       ]);
+      // Only `number` takes null (to clear it); a null elsewhere in the
+      // override is a type mismatch, not "keep the claimed value".
+      for (const key of ["kindId", "year", "semester"]) {
+        if (body[key] === null) throw malformed(`${key}: 정수여야 합니다.`);
+      }
       if (report.status !== "pending")
         throw conflict("REPORT_ALREADY_REVIEWED");
       const fe = new FieldErrors();
