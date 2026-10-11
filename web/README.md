@@ -7,11 +7,10 @@ Node 24 이상, pnpm.
 
 ## 계약(API) 파일
 
-`api/openapi.yaml`은 백엔드 워크트리의 계약을 가리키는 심볼릭 링크이고 커밋하지
-않는다. 새로 받은 체크아웃에서는 한 번 만든다.
+`api/openapi.yaml`은 저장소의 계약 `docs/api/openapi.yaml`을 가리키는 심볼릭
+링크로, 커밋되어 있다. 계약이 바뀌면 타입을 다시 만든다.
 
 ```sh
-ln -s ../../../go-backend/docs/api/openapi.yaml api/openapi.yaml
 pnpm api:types   # app/api/schema.d.ts 재생성(커밋 대상)
 ```
 

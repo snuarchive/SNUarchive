@@ -13,9 +13,8 @@
 | `docs/frontend/`     | 프론트엔드 이주 계획과 결정 기록(`plan.md`)                                   |
 | `.github/workflows/` | CI(`web.yml`)                                                                 |
 
-API 서버(Go + PostgreSQL)와 배포 설정(docker compose + Caddy)은
-`feature/go-backend` 브랜치에서 작업 중이며, 병합되면 이 저장소에 함께 들어온다.
-API 계약은 그 브랜치의 `docs/api/openapi.yaml`이다.
+API 서버(Go + PostgreSQL)와 배포 설정(docker compose + Caddy)도 이 저장소에
+있다. API 계약은 `docs/api/openapi.yaml`이다.
 
 배포 형태: 한 VM에서 compose로 Caddy, Go API, React SSR 서버(`web`), PostgreSQL을
 띄운다. Caddy가 `/api/*`는 Go로, 나머지는 `web`으로 보낸다.

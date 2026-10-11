@@ -13,7 +13,7 @@ import { malformedScenarios } from "./scenarios/malformed";
 import { mockControlScenarios } from "./scenarios/mock";
 import { sessionScenarios } from "./scenarios/session";
 
-// test/globalSetup.ts prints how to restore the symlink when it is missing.
+// test/globalSetup.ts warns when the contract is missing (and fails in CI).
 describe.skipIf(!specExists)(
   specExists ? "contract" : `contract (skipped: ${SPEC_PATH} not found)`,
   () => {

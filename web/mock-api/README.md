@@ -237,7 +237,7 @@ for routing and response-schema selection, with three fixes for OpenAPI 3.1:
 - Its draft-07 Ajv is swapped for Ajv 2020-12 with `ajv-formats`.
 - Status and media-type checks are added.
 
-`web/api/openapi.yaml` is an uncommitted symlink into the go-backend worktree.
-When it is missing, the contract tests are skipped with a notice that says how
-to restore it. `OPENAPI_SPEC=path/to/openapi.yaml pnpm test` points them at
+`web/api/openapi.yaml` is a committed symlink to `docs/api/openapi.yaml`.
+When it is missing, the contract tests are skipped with a notice, except in CI,
+where they fail. `OPENAPI_SPEC=path/to/openapi.yaml pnpm test` points them at
 another copy.

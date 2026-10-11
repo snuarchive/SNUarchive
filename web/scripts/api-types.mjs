@@ -1,6 +1,6 @@
-// Regenerates app/api/schema.d.ts from the contract. api/openapi.yaml is an
-// uncommitted symlink into the go-backend worktree; the generated file is
-// committed so builds work where the symlink is absent. The header records
+// Regenerates app/api/schema.d.ts from the contract. api/openapi.yaml is a
+// committed symlink to docs/api/openapi.yaml; the generated file is committed
+// too, so builds (the Docker image, whose context is web/) work without it. The header records
 // which backend commit the types came from.
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
@@ -11,8 +11,8 @@ const out = "app/api/schema.d.ts";
 
 if (!existsSync(spec)) {
   console.error(
-    `${spec} is missing. Link it to the go-backend worktree first:\n` +
-      "  ln -s ../../../go-backend/docs/api/openapi.yaml api/openapi.yaml",
+    `${spec} is missing. It is a committed symlink to docs/api/openapi.yaml;\n` +
+      "restore it with: git checkout -- api/openapi.yaml",
   );
   process.exit(1);
 }

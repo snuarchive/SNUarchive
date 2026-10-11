@@ -1,14 +1,16 @@
 # Checks the React app (web/) and its mock API (web/mock-api/). The mock's
-# contract tests skip here: web/api/openapi.yaml is a local symlink into the
-# Go backend until the two branches are merged.
+# contract tests read docs/api/openapi.yaml through the web/api/openapi.yaml
+# symlink, so contract changes run this workflow too.
 name: web
 
 on:
   push:
     branches: [main]
-    paths: ["web/**", "20*.json", ".github/workflows/web.yml"]
+    paths:
+      ["web/**", "docs/api/**", "20*.json", ".github/workflows/web.yml"]
   pull_request:
-    paths: ["web/**", "20*.json", ".github/workflows/web.yml"]
+    paths:
+      ["web/**", "docs/api/**", "20*.json", ".github/workflows/web.yml"]
 
 permissions:
   contents: read
