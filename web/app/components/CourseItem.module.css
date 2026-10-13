@@ -1,0 +1,111 @@
+.item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 40px;
+  align-items: stretch;
+  gap: 8px;
+  min-height: 116px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: var(--background-raised);
+  overflow: visible;
+}
+
+.item:hover {
+  background: var(--background-hover);
+}
+
+.active {
+  border-color: var(--brand-red);
+}
+
+.main {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  justify-items: start;
+  min-width: 0;
+  min-height: 114px;
+  overflow: visible;
+  padding: 14px;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  text-decoration: none;
+}
+
+.titleLine,
+.meta {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.titleLine {
+  display: block;
+  padding-top: 2px;
+  line-height: 1.35;
+}
+
+.titleLine strong {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.35;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.meta {
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+  overflow: visible;
+  white-space: normal;
+}
+
+.badges em {
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--control-grey);
+  color: var(--text-primary);
+  font-size: 11px;
+  font-style: normal;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+/* Legacy quirk kept: the first two badges are red, whichever they are. */
+.badges em:nth-child(2),
+.badges em:first-child {
+  background: var(--brand-red);
+}
+
+.favoriteForm {
+  display: flex;
+}
+
+.favorite {
+  align-self: stretch;
+  width: 40px;
+  min-height: 114px;
+  padding: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 18px;
+}
+
+.favorite[aria-pressed="true"] {
+  color: var(--brand-red);
+}

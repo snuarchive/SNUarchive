@@ -1,0 +1,151 @@
+.graph {
+  display: grid;
+  gap: 2px;
+  min-width: 220px;
+}
+
+.axis {
+  position: relative;
+  height: 26px;
+  margin: 0 8px;
+  background-image:
+    linear-gradient(
+      to right,
+      transparent calc(25% - 1px),
+      rgba(255, 255, 255, 0.08) calc(25% - 1px),
+      rgba(255, 255, 255, 0.08) 25%,
+      transparent 25%
+    ),
+    linear-gradient(
+      to right,
+      transparent calc(50% - 1px),
+      rgba(255, 255, 255, 0.12) calc(50% - 1px),
+      rgba(255, 255, 255, 0.12) 50%,
+      transparent 50%
+    ),
+    linear-gradient(
+      to right,
+      transparent calc(75% - 1px),
+      rgba(255, 255, 255, 0.08) calc(75% - 1px),
+      rgba(255, 255, 255, 0.08) 75%,
+      transparent 75%
+    );
+}
+
+.axis::before {
+  position: absolute;
+  top: 14px;
+  right: 0;
+  left: 0;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--background-hover);
+  content: "";
+}
+
+.range {
+  position: absolute;
+  top: 12px;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(229, 9, 20, 0.24);
+}
+
+.marker {
+  position: absolute;
+  top: 7px;
+  z-index: 2;
+  width: 2px;
+  height: 16px;
+  border-radius: 999px;
+  background: var(--text-primary);
+  color: var(--text-primary);
+  transform: translateX(-1px);
+}
+
+.marker::before {
+  position: absolute;
+  top: -4px;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  content: "";
+  transform: translateX(-50%);
+}
+
+.marker::after {
+  position: absolute;
+  top: -18px;
+  left: 50%;
+  color: var(--text-secondary);
+  content: attr(data-label);
+  font-size: 10px;
+  font-weight: 700;
+  transform: translateX(-50%);
+}
+
+.q2 {
+  background: var(--brand-red);
+  color: var(--brand-red);
+}
+
+.average {
+  top: 12px;
+  z-index: 1;
+  width: 8px;
+  height: 8px;
+  border: 1px solid var(--text-muted);
+  background: var(--background-surface);
+  color: var(--text-muted);
+  opacity: 0.85;
+  transform: translateX(-4px);
+}
+
+.average::before,
+.average::after {
+  display: none;
+}
+
+.scale {
+  display: flex;
+  justify-content: space-between;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.empty {
+  padding: 8px 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+@media (max-width: 734px) {
+  .graph {
+    min-width: 0;
+  }
+
+  .axis {
+    height: 30px;
+    margin: 0 9px;
+  }
+
+  .axis::before {
+    top: 16px;
+  }
+
+  .range {
+    top: 14px;
+  }
+
+  .marker {
+    top: 8px;
+    height: 17px;
+  }
+
+  .average {
+    top: 14px;
+    height: 8px;
+  }
+}

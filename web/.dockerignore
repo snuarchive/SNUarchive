@@ -1,0 +1,10 @@
+node_modules
+build
+.react-router
+mock-api
+e2e
+playwright-report
+test-results
+api
+**/*.test.ts
+**/*.test.tsx
