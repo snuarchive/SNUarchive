@@ -59,8 +59,8 @@ pnpm --dir mock-api test   # 목업 응답의 계약 검증
 Playwright 브라우저를 내려받지 않고 설치된 Chromium을 쓰려면
 `PW_CHROMIUM_PATH=/usr/bin/chromium pnpm test:e2e`.
 
-CI(`.github/workflows/web.yml`)는 위 검사를 모두 돌린다. 계약 파일이 없으므로
-목업의 계약 검증만 건너뛴다(백엔드와 병합 뒤 링크를 저장소 안 경로로 바꾼다).
+CI(`.github/workflows/web.yml`)는 목업의 계약 검증을 포함해 위 검사를 모두 돌린다.
+`docs/api/`가 바뀌어도 돈다.
 
 ## Go 백엔드로 E2E
 
@@ -75,9 +75,9 @@ CI(`.github/workflows/web.yml`)는 위 검사를 모두 돌린다. 계약 파일
 | `compose`    | 없음                   | 배포 compose 전체(Caddy 포함)를 개발 모드로 띄움. 주소 `E2E_BASE_URL`(기본 `http://localhost`)                                                                                 |
 
 ```sh
-# 명령은 web/에서 실행된다. 병합 전에는 백엔드 워크트리로 이동해서 부른다.
-E2E_RESET_CMD='cd ../../go-backend && go run ./cmd/snuarchive dev seed' pnpm test:e2e:go
-# compose 스택(-f compose.yaml -f compose.e2e.yaml, 두 PR 병합 뒤)
+# 명령은 web/에서 실행된다. Go 모듈은 저장소 루트에 있다.
+E2E_RESET_CMD='cd .. && go run ./cmd/snuarchive dev seed' pnpm test:e2e:go
+# compose 스택(-f compose.yaml -f compose.e2e.yaml, 백엔드가 web 서비스를 넣은 뒤)
 E2E_RESET_CMD='docker compose -f ../deploy/compose.yaml -f ../deploy/compose.e2e.yaml exec -T app snuarchive dev seed' pnpm test:e2e:compose
 ```
 

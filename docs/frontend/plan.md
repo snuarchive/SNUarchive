@@ -23,21 +23,21 @@
 
 ### 1.2 기술
 
-| 항목           | 결정                                                                                                                                                            |
-| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 프레임워크     | React Router 8 framework 모드(SSR). RSC(`unstable_*`) 미사용                                                                                                    |
-| 언어·런타임    | TypeScript, Node 24, pnpm                                                                                                                                       |
-| 위치           | `web/`                                                                                                                                                          |
-| 스타일         | `public/styles.css`를 CSS Modules로 분할. Tailwind 미사용. 어두운 테마 유지                                                                                     |
-| 린트·테스트    | ESLint + Prettier, Vitest + Testing Library, Playwright                                                                                                         |
-| CI             | `.github/workflows/web.yml`: 타입·린트·포맷·Vitest·목업 테스트·빌드·목업 상대 E2E. 목업의 계약 검증은 계약 파일이 없어 CI에서 건너뜀                            |
-| API 호출       | 모두 React Router 서버(loader/action) 경유. 브라우저가 `/api/v1`에 직접 가는 것은 OAuth, 관리자 파일 미리보기, 로그 내보내기 다운로드뿐(같은 출처 프록시)       |
-| API 클라이언트 | `openapi-fetch` + `openapi-typescript` 생성 타입                                                                                                                |
-| 계약 파일      | `web/api/openapi.yaml` = `feature/go-backend` 워크트리의 `docs/api/openapi.yaml`을 가리키는 **미커밋 심볼릭 링크**. 생성 타입(`web/app/api/schema.d.ts`)은 커밋 |
-| 목업           | `web/mock-api/` (Hono). 웹 코드는 import하지 않고 HTTP 주소로만 연결. 빌드에 포함하지 않음                                                                      |
-| 목업 데이터    | 원본 학기 JSON 9개에서 카탈로그 생성, 기여 데이터(통계·투표·한줄평 등)는 예시로 작성                                                                            |
-| 계약 검증      | 목업의 모든 응답을 OpenAPI 전용 검증 라이브러리로 검사하는 테스트. 링크가 없으면 건너뜀                                                                         |
-| 개발 로그인    | API가 단일 기준: `/config.devLoginEnabled`가 true일 때만 로그인 화면에 이메일 입력 폼(Go는 운영에서 항상 false). 프론트 자체 설정은 없음(5.3 P7)                |
+| 항목           | 결정                                                                                                                                                               |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 프레임워크     | React Router 8 framework 모드(SSR). RSC(`unstable_*`) 미사용                                                                                                       |
+| 언어·런타임    | TypeScript, Node 24, pnpm                                                                                                                                          |
+| 위치           | `web/`                                                                                                                                                             |
+| 스타일         | `public/styles.css`를 CSS Modules로 분할. Tailwind 미사용. 어두운 테마 유지                                                                                        |
+| 린트·테스트    | ESLint + Prettier, Vitest + Testing Library, Playwright                                                                                                            |
+| CI             | `.github/workflows/web.yml`: 타입·린트·포맷·Vitest·목업 테스트·빌드·목업 상대 E2E. 목업의 계약 검증은 계약 파일이 없어 CI에서 건너뜀                               |
+| API 호출       | 모두 React Router 서버(loader/action) 경유. 브라우저가 `/api/v1`에 직접 가는 것은 OAuth, 관리자 파일 미리보기, 로그 내보내기 다운로드뿐(같은 출처 프록시)          |
+| API 클라이언트 | `openapi-fetch` + `openapi-typescript` 생성 타입                                                                                                                   |
+| 계약 파일      | `web/api/openapi.yaml` = 저장소의 `docs/api/openapi.yaml`을 가리키는 심볼릭 링크(`../../docs/api/openapi.yaml`, 커밋). 생성 타입(`web/app/api/schema.d.ts`)도 커밋 |
+| 목업           | `web/mock-api/` (Hono). 웹 코드는 import하지 않고 HTTP 주소로만 연결. 빌드에 포함하지 않음                                                                         |
+| 목업 데이터    | 원본 학기 JSON 9개에서 카탈로그 생성, 기여 데이터(통계·투표·한줄평 등)는 예시로 작성                                                                               |
+| 계약 검증      | 목업의 모든 응답을 OpenAPI 전용 검증 라이브러리로 검사하는 테스트. 링크가 없으면 건너뜀                                                                            |
+| 개발 로그인    | API가 단일 기준: `/config.devLoginEnabled`가 true일 때만 로그인 화면에 이메일 입력 폼(Go는 운영에서 항상 false). 프론트 자체 설정은 없음(5.3 P7)                   |
 
 ### 1.3 화면·동작
 
@@ -85,7 +85,7 @@
 | 요청 ID       | web이 받은 `X-Request-ID`(Caddy가 붙임)가 UUID 형식이면 그대로, 아니면 새로 만들어 그 요청의 모든 Go 호출에 붙임. `X-Forwarded-For`는 받은 그대로                                                                                                                                                                                                                                                                                                                        |
 | 이전 앱       | 이 브랜치에서 삭제: `public/`, `api/`, `scripts/`, `firebase/`, `server.js`, `vercel.json`, 루트 `package.json`·`package-lock.json`, `.env.example`. 원본 학기 JSON은 유지. 루트 README 새로 씀                                                                                                                                                                                                                                                                          |
 | Go 상대 E2E   | `E2E_TARGET=mock`(기본)·`go`(`go run` + Postgres, 평소)·`compose`(배포 스택 전체, 배포 전). 목업이 아니면 테스트마다 `E2E_RESET_CMD`로 백엔드 개발 시드 실행: `snuarchive dev seed`(`go run ./cmd/snuarchive dev seed`, compose는 `docker compose exec app snuarchive dev seed`). 시드는 백엔드 2단계부터 단계마다 늘어나므로 Go 대상 E2E도 단계만큼만 통과. 시드 카탈로그는 작은 고정 목록(E2E가 찾는 강의는 `미적분학 1`, `선형대수학`). 장애 주입 테스트는 목업에서만 |
-| 계약 파일     | 병합 전까지 미커밋 심볼릭 링크 유지. 병합 뒤 링크를 저장소 안 경로(`../../docs/api/openapi.yaml`)로 바꿔 커밋하고 CI에서 계약 검증을 켬                                                                                                                                                                                                                                                                                                                                  |
+| 계약 파일     | **완료(2026-10-11).** 백엔드(#1)가 main에 병합돼 링크를 저장소 안 경로(`../../docs/api/openapi.yaml`)로 바꿔 커밋했고, CI에서 계약 검증을 켰다(`0952044`). 타입은 main `248727b` 기준                                                                                                                                                                                                                                                                                    |
 
 ## 2. 라우트
 
@@ -118,8 +118,7 @@
 
 ## 4. 남은 일(이번 범위 밖)
 
-- 백엔드 병합 뒤: 계약 링크를 저장소 안 경로로 바꾸고 CI에서 계약 검증 켜기
-- 두 PR 병합 뒤 백엔드가 compose `web` 서비스·Caddy 라우팅·E2E override를 넣으면: `E2E_TARGET=compose`로 E2E 실행. `E2E_TARGET=go`는 백엔드 시드가 단계별로 늘어나는 대로
+- 이 PR 병합 뒤 백엔드가 compose `web` 서비스(`WEB_IP`)·Caddy 라우팅·E2E override(`deploy/compose.e2e.yaml`)·`WEB_SESSION_SECRET`을 넣는다(2026-10-13 다시 확인: 백엔드가 맡음). Caddy의 web 쪽 `handle`에도 `/api/*`와 같이 `header_up X-Request-ID {http.request.uuid}`가 필요하다. web은 형식이 맞는 `X-Request-ID`를 Go에 그대로 넘기고 Go는 web을 신뢰하므로, Caddy가 덮어쓰지 않으면 브라우저가 지어낸 ID가 Go 로그에 들어간다(`deploy/compose.yaml`의 `TRUSTED_PROXIES` 주석은 Caddy나 web이 만든 ID만 온다고 가정). 그 뒤 `E2E_TARGET=compose`로 E2E 실행. `E2E_TARGET=go`는 백엔드 시드가 단계별로 늘어나는 대로
 - 실제 배포(도메인, Google OAuth 리디렉션 URI, 데이터 이관)
 
 ## 5. 작업 중 정한 사항·보류 항목
