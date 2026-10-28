@@ -1,0 +1,71 @@
+package httpapi
+
+import (
+	"strings"
+	"testing"
+)
+
+func TestSafeNext(t *testing.T) {
+	const app = "https://archive.example.com"
+	for _, ok := range []string{
+		"/", "/courses/12", "/courses/12?tab=stats", "/search?q=%EB%AF%B8%EC%A0%81%EB%B6%84", "/a#b",
+		"/a.b/c", "/courses/1..2",
+	} {
+		if got, accepted := safeNext(ok, app); !accepted || got != ok {
+			t.Errorf("%q refused", ok)
+		}
+	}
+	for _, bad := range []string{
+		"", "courses", "//evil.example", "/\\evil.example", "/x\\y", "https://evil.example/",
+		"/\t/evil.example", "/a b", "/a\x00", "/a\x7f", "/" + strings.Repeat("a", 2048),
+		// O32: dot-segments and "//" must be rejected in both raw and
+		// percent-decoded form.
+		"/%2e%2e//x", "/..//x", "/.//x", "/%2F%2Fx", "/%2F%2Fevil",
+		"/a/../b", "/a/./b", "/a/%2e%2e/b", "/..", "/.", "/../", "/./",
+		// O32 fix round 1: safeNext's own character rules (second character
+		// not "/" or "\", no "\" anywhere, no control characters/DEL/space)
+		// apply to the percent-decoded path too, since a browser normalises
+		// the decoded form the same way it would the raw one.
+		"/%5Cevil", "/%5C%5Cevil", "/%09/evil", "/%00",
+		// a path that fails to percent-decode is unsafe, not passed through.
+		"/%zz",
+	} {
+		if _, accepted := safeNext(bad, app); accepted {
+			t.Errorf("%q accepted", bad)
+		}
+	}
+}
+
+func TestWithAuthOK(t *testing.T) {
+	for in, want := range map[string]string{
+		"/":                "/?auth=ok",
+		"/courses/12":      "/courses/12?auth=ok",
+		"/search?q=x":      "/search?q=x&auth=ok",
+		"/search?q=x#top":  "/search?q=x&auth=ok#top",
+		"/a#b":             "/a?auth=ok#b",
+		"/search?":         "/search?auth=ok",
+		"/p?q=%20#frag?x=": "/p?q=%20&auth=ok#frag?x=",
+		// A trailing "&" is a real, already-empty pair once the query is
+		// non-empty (unlike "/search?" above, which has no pairs at all):
+		// auth=ok is appended as a new pair after it, "&&" and all.
+		"/search?q=x&": "/search?q=x&&auth=ok",
+		// O32: an existing `auth` value (however it got there) is dropped
+		// before auth=ok is appended; the rest of the query and the
+		// fragment are kept exactly as written.
+		"/x?auth=forbidden&tab=1#top": "/x?tab=1&auth=ok#top",
+		"/x?tab=1&auth=forbidden":     "/x?tab=1&auth=ok",
+		"/x?auth=forbidden":           "/x?auth=ok",
+		"/x?a%75th=forbidden&tab=1":   "/x?tab=1&auth=ok",
+		// O32 fix round 1: an empty pair from a doubled "&" is part of the
+		// query as written and is kept, not dropped.
+		"/x?a=1&&b=2": "/x?a=1&&b=2&auth=ok",
+		// O32 fix round 2: removing the auth pair leaves the already-empty
+		// pair that followed it; auth=ok is appended after that, not in
+		// its place.
+		"/x?auth=x&": "/x?&auth=ok",
+	} {
+		if got := withAuthOK(in); got != want {
+			t.Errorf("withAuthOK(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

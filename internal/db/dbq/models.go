@@ -541,6 +541,7 @@ type User struct {
 	CreatedAt     time.Time
 	LastSeenAt    *time.Time
 	DeletedAt     *time.Time
+	GoogleSub     *string
 }
 
 type VSittingDifficulty struct {

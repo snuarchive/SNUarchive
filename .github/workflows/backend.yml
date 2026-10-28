@@ -1,0 +1,38 @@
+name: backend
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      # Version and dependency cache follow the module rather than a second list.
+      # https://github.com/actions/setup-go#usage
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Check generated queries, vet, lint and tests
+        # The DB suites start disposable PostgreSQL containers themselves.
+        # Do not use -short: it skips those integration and contract tests.
+        run: make check
+
+      - name: Build Go packages
+        run: go build ./...
+
+      - name: Build API image
+        run: docker build --file deploy/Dockerfile --tag snuarchive/api:ci .

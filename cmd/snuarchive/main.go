@@ -16,9 +16,12 @@ import (
 
 	"github.com/pressly/goose/v3"
 
+	"github.com/snuarchive/snuarchive/internal/auth"
 	"github.com/snuarchive/snuarchive/internal/config"
 	"github.com/snuarchive/snuarchive/internal/db"
 	"github.com/snuarchive/snuarchive/internal/db/dbq"
+	"github.com/snuarchive/snuarchive/internal/devseed"
+	"github.com/snuarchive/snuarchive/internal/google"
 	"github.com/snuarchive/snuarchive/internal/httpapi"
 	"github.com/snuarchive/snuarchive/internal/refdata"
 	"github.com/snuarchive/snuarchive/internal/telemetry"
@@ -34,6 +37,7 @@ commands:
   migrate up        apply pending migrations
   migrate down --yes   roll back the most recent migration
   migrate status    list migrations and whether they are applied
+  dev seed          reset the database to the development data (APP_ENV=development only)
   version           print the build version
 `
 
@@ -56,6 +60,8 @@ func run(ctx context.Context, args []string, lookup config.LookupFunc, stdout, s
 		return serve(ctx, lookup, stdout, stderr)
 	case "migrate":
 		return migrate(ctx, args[1:], lookup, stdout, stderr)
+	case "dev":
+		return dev(ctx, args[1:], lookup, stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "unknown command %q\n\n%s", args[0], usage)
 		return 2
@@ -147,6 +153,38 @@ func migrate(ctx context.Context, args []string, lookup config.LookupFunc, stdou
 	return 0
 }
 
+// dev seed empties the tables the seed fills and reloads them. It reads only
+// APP_ENV and DATABASE_URL, and refuses anything but development, since it
+// deletes every account.
+func dev(ctx context.Context, args []string, lookup config.LookupFunc, stdout, stderr io.Writer) int {
+	if len(args) != 1 || args[0] != "seed" {
+		fmt.Fprint(stderr, usage)
+		return 2
+	}
+	if env, _ := lookup("APP_ENV"); strings.TrimSpace(env) != string(config.Development) {
+		fmt.Fprintln(stderr, "dev seed: refused: APP_ENV must be development")
+		return 1
+	}
+	url, _ := lookup("DATABASE_URL")
+	if strings.TrimSpace(url) == "" {
+		fmt.Fprintln(stderr, "dev seed: DATABASE_URL is required")
+		return 1
+	}
+	pool, err := db.Open(ctx, db.Options{URL: url, MaxConns: 2})
+	if err != nil {
+		fmt.Fprintln(stderr, "dev seed:", err)
+		return 1
+	}
+	defer pool.Close()
+	start := time.Now()
+	if err := devseed.Seed(ctx, pool); err != nil {
+		fmt.Fprintln(stderr, "dev seed:", err)
+		return 1
+	}
+	fmt.Fprintf(stdout, "seeded (%s)\n", time.Since(start).Round(time.Millisecond))
+	return 0
+}
+
 func serve(ctx context.Context, lookup config.LookupFunc, stdout, stderr io.Writer) int {
 	cfg, warnings, err := config.Load(lookup)
 	if err != nil {
@@ -172,14 +210,26 @@ func serve(ctx context.Context, lookup config.LookupFunc, stdout, stderr io.Writ
 	}
 	defer pool.Close()
 
+	deps := httpapi.Deps{
+		Config:   cfg,
+		Logger:   logger,
+		DB:       pool,
+		RefData:  refdata.New(dbq.New(pool), cfg.Upload.MaxBytes),
+		Accounts: auth.NewService(pool, cfg.AdminEmails, logger),
+	}
+	// Without Google credentials (allowed only with dev login) the Google
+	// routes answer with /?auth=error.
+	if cfg.Google.ClientID != "" {
+		deps.Google = google.New(ctx, google.Options{
+			ClientID:     cfg.Google.ClientID,
+			ClientSecret: cfg.Google.ClientSecret,
+			RedirectURL:  cfg.AppOrigin + "/api/v1/auth/google/callback",
+		})
+	}
+
 	srv := &http.Server{
-		Addr: cfg.HTTPAddr,
-		Handler: httpapi.New(httpapi.Deps{
-			Config:  cfg,
-			Logger:  logger,
-			DB:      pool,
-			RefData: refdata.New(dbq.New(pool), cfg.Upload.MaxBytes),
-		}),
+		Addr:              cfg.HTTPAddr,
+		Handler:           httpapi.New(deps),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      60 * time.Second,

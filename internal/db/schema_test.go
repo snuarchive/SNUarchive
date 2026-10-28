@@ -167,6 +167,33 @@ func TestUserScrubMustBeComplete(t *testing.T) {
 	}
 }
 
+// A live account needs an email or a Google sub (it can lose its email to a
+// reissued address); a scrubbed one must have dropped its sub as well.
+func TestGoogleSubRules(t *testing.T) {
+	pool := pgtest.New(t)
+	ctx := context.Background()
+	id := scalar[int64](t, pool, `INSERT INTO users (email, google_sub) VALUES ('a@snu.ac.kr', '1001') RETURNING id`)
+	mustExec(t, pool, `UPDATE users SET email = NULL WHERE id = $1`, id)
+
+	_, err := pool.Exec(ctx, `INSERT INTO users (email, google_sub) VALUES ('b@snu.ac.kr', '1001')`)
+	if got := constraintOf(t, err); got != "users_google_sub_u" {
+		t.Fatalf("duplicate sub: constraint = %q", got)
+	}
+	_, err = pool.Exec(ctx, `INSERT INTO users (email, google_sub) VALUES ('c@snu.ac.kr', 'has space')`)
+	if got := constraintOf(t, err); got != "users_google_sub_ck" {
+		t.Fatalf("malformed sub: constraint = %q", got)
+	}
+	_, err = pool.Exec(ctx, `UPDATE users SET google_sub = NULL WHERE id = $1`, id)
+	if got := constraintOf(t, err); got != "users_live_ck" {
+		t.Fatalf("live row with neither email nor sub: constraint = %q", got)
+	}
+	_, err = pool.Exec(ctx, `UPDATE users SET deleted_at = now() WHERE id = $1`, id)
+	if got := constraintOf(t, err); got != "users_scrubbed_ck" {
+		t.Fatalf("scrub keeping the sub: constraint = %q", got)
+	}
+	mustExec(t, pool, `UPDATE users SET google_sub = NULL, deleted_at = now() WHERE id = $1`, id)
+}
+
 func TestOneOpenVotingRequestPerUser(t *testing.T) {
 	pool := pgtest.New(t)
 	f := seed(t, pool)
