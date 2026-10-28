@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { filterQuery, isEmptyFilter, readLogFilter } from "./logFilter";
+import { actionLabel } from "./activity";
 
 describe("readLogFilter", () => {
   it("reads Seoul datetimes, known actions and a user id", () => {
@@ -22,6 +23,23 @@ describe("readLogFilter", () => {
     expect(filter).toEqual({});
     expect(isEmptyFilter(filter)).toBe(true);
   });
+
+  it("drops inherited object properties while keeping valid actions", () => {
+    expect(
+      readLogFilter(
+        new URLSearchParams(
+          "action=toString&action=login&action=constructor&action=__proto__",
+        ),
+      ),
+    ).toEqual({ action: ["login"] });
+  });
+});
+
+describe("actionLabel", () => {
+  it.each(["toString", "constructor", "__proto__", "future_action"])(
+    "renders unknown action %s as its code",
+    (action) => expect(actionLabel(action)).toBe(action),
+  );
 });
 
 describe("filterQuery", () => {

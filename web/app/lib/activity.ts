@@ -41,7 +41,9 @@ export const ACTION_LABELS: Record<Action, string> = {
 
 /** Unknown future actions render as their code, as the contract asks. */
 export function actionLabel(action: string): string {
-  return ACTION_LABELS[action as Action] ?? action;
+  return Object.hasOwn(ACTION_LABELS, action)
+    ? ACTION_LABELS[action as Action]
+    : action;
 }
 
 /** The legacy one-line summary of a log entry's metadata. */

@@ -23,7 +23,7 @@ export function readLogFilter(params: URLSearchParams): LogFilter {
   if (until) filter.until = until;
   const actions = params
     .getAll("action")
-    .filter((a): a is Action => a in ACTION_LABELS);
+    .filter((a): a is Action => Object.hasOwn(ACTION_LABELS, a));
   if (actions.length) filter.action = actions;
   const userId = Number(params.get("userId"));
   if (Number.isInteger(userId) && userId > 0) filter.userId = userId;

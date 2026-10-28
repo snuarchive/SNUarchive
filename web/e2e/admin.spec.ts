@@ -78,6 +78,39 @@ test("account lookup finds an exact email", async ({ page }) => {
   await expect(page.getByText(ACCOUNTS.student)).toBeVisible();
 });
 
+for (const lookup of [
+  { query: "email=student%40snu.ac.kr", api: "/api/v1/admin/users" },
+  { query: "id=2", api: "/api/v1/admin/users/2" },
+]) {
+  test(`account lookup ${lookup.query} distinguishes a failure from not found`, async ({
+    page,
+    request,
+  }) => {
+    await injectFault(request, {
+      method: "GET",
+      path: lookup.api,
+      status: 500,
+      code: "INTERNAL",
+    });
+    const failed = await page.goto(`/admin/users/lookup?${lookup.query}`);
+    expect(failed?.status()).toBe(500);
+    await expect(page.getByText("계정을 찾지 못했습니다.")).toHaveCount(0);
+    await expect(
+      page.getByRole("heading", { name: "오류", exact: true }),
+    ).toBeVisible();
+
+    await injectFault(request, {
+      method: "GET",
+      path: lookup.api,
+      status: 404,
+      code: "NOT_FOUND",
+    });
+    const missing = await page.goto(`/admin/users/lookup?${lookup.query}`);
+    expect(missing?.status()).toBe(200);
+    await expect(page.getByText("계정을 찾지 못했습니다.")).toBeVisible();
+  });
+}
+
 test("user summary and ops pages render", async ({ page }) => {
   for (const [path, heading] of [
     ["/admin/users/summary", "학과별 사용자 수"],

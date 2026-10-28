@@ -37,6 +37,60 @@ test("searching as you type puts the query in the address", async ({
   ).toBeVisible();
 });
 
+test("a completed search does not cancel newer typing", async ({ page }) => {
+  await page.clock.install();
+  let release!: () => void;
+  let ready!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const fetched = new Promise<void>((resolve) => {
+    ready = resolve;
+  });
+  await page.route("**/*.data*", async (route) => {
+    if (new URL(route.request().url()).searchParams.get("q") !== "미") {
+      await route.continue();
+      return;
+    }
+    const response = await route.fetch();
+    ready();
+    await held;
+    await route.fulfill({ response });
+  });
+  const search = page.getByRole("searchbox");
+  await search.fill("미");
+  await page.clock.runFor(250);
+  await fetched;
+  await search.fill("미적");
+  release();
+  await expect(page).toHaveURL(/q=%EB%AF%B8$/);
+  await page.clock.runFor(300);
+  await expect(page).toHaveURL(/q=%EB%AF%B8%EC%A0%81$/);
+  await expect(search).toHaveValue("미적");
+});
+
+test("going back cancels pending typing on the same path", async ({ page }) => {
+  const search = page.getByRole("searchbox");
+  await search.fill("선형");
+  await search.press("Enter");
+  await expect(page).toHaveURL(/q=%EC%84%A0%ED%98%95$/);
+  await search.fill("미");
+  await search.press("Enter");
+  await expect(page).toHaveURL(/q=%EB%AF%B8$/);
+  await page.clock.install();
+  await search.fill("미적");
+  await page.goBack();
+  await expect(page).toHaveURL(/q=%EC%84%A0%ED%98%95$/);
+  // The browser's address changes before the POP loader commits its UI.
+  await expect(
+    page.getByRole("link", { name: /선형대수학/ }).first(),
+  ).toBeVisible();
+  await expect(search).toHaveValue("선형");
+  await page.clock.runFor(500);
+  await expect(page).toHaveURL(/q=%EC%84%A0%ED%98%95$/);
+  await expect(search).toHaveValue("선형");
+});
+
 test("a course with open voting shows voting first and takes a vote", async ({
   page,
 }) => {

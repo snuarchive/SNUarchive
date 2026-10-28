@@ -68,7 +68,8 @@ export function encodeExport(
 }
 
 function csvCell(v: string | number): string {
-  const s = String(v);
+  let s = String(v);
+  if (typeof v === "string" && /^[=+\-@\t\r\n]/.test(s)) s = `'${s}`;
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 

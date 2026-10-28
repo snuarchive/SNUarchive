@@ -211,16 +211,22 @@ mock decides as follows:
   open voting requests open.
 - **Log export.** JSON, JSONL, CSV and XLSX are real files. **Parquet is a
   placeholder** (`PAR1` magic around a text note) and is not readable.
+  The mock CSV encoder prefixes text beginning with `=`, `+`, `-`, `@`, tab,
+  CR or LF with an apostrophe before CSV quoting. Numbers remain numbers.
+  This is mock-only hardening, not verification of the Go export. It does not
+  guarantee safety after a spreadsheet saves and reopens the CSV; use the XLSX
+  export, which explicitly stores text cells as strings, for spreadsheet use.
 - **Jobs.** `retention` and `archive` delete log rows in memory; `archive`
   also adds an archive run. `upload-gc` has nothing to collect.
 - **State** lives in memory only and is lost on restart.
 
 ## Tests
 
-`pnpm test` runs two files:
+`pnpm test` runs:
 
 - `test/unit.test.ts` covers catalog identity and search, term boundaries,
   statistic rules, byline masking, the sign-in `next` rule and file sniffing.
+- `test/export.test.ts` covers CSV formula-prefix handling and quoting.
 - `test/contract.test.ts` calls every operation in the contract against the
   Hono app in-process, covering happy paths and the documented errors. Every
   response is checked against `../api/openapi.yaml`: the status must be

@@ -45,6 +45,11 @@ Go는 `APP_ENV=development`와 `DEV_LOGIN_ENABLED=true`일 때). 로그인 화�
 `APP_ENV=production`이면 `API_ORIGIN`, `APP_ORIGIN`, `WEB_SESSION_SECRET`이 모두
 있어야 한다.
 
+`API_ORIGIN`으로 세션 쿠키를 전달하므로 운영 환경에서는 HTTPS를 사용한다.
+접근이 통제된 신뢰할 수 있는 내부망(예: Compose의 web과 app 사이)에서는
+HTTP를 사용할 수 있다. web에 대한 직접 외부 접근을 차단하고, 앞단 프록시가
+클라이언트의 전달 헤더를 신뢰할 수 있는 값으로 덮어쓰도록 배포해야 한다.
+
 ## 검사
 
 ```sh

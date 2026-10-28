@@ -1,6 +1,6 @@
 import { Form, Link, redirect, useLocation } from "react-router";
 
-import { apiContext, failureOf } from "~/api/client.server";
+import { apiContext, failureOf, load } from "~/api/client.server";
 import s from "~/components/admin/admin.module.css";
 import { UserCard } from "~/components/admin/UserCard";
 import { cx } from "~/lib/cx";
@@ -22,13 +22,19 @@ export async function loader({ request, context }: Route.LoaderArgs) {
     const result = await client.GET("/admin/users/{userId}", {
       params: { path: { userId: id } },
     });
-    return { email, user: result.data ?? null, searched: true };
+    const user =
+      result.response.status === 404
+        ? null
+        : await load(Promise.resolve(result));
+    return { email, user, searched: true };
   }
   if (!email) return { email, user: null, searched: false };
   const result = await client.GET("/admin/users", {
     params: { query: { email } },
   });
-  return { email, user: result.data ?? null, searched: true };
+  const user =
+    result.response.status === 404 ? null : await load(Promise.resolve(result));
+  return { email, user, searched: true };
 }
 
 export async function action({ request, context }: Route.ActionArgs) {

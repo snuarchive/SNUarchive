@@ -4,6 +4,7 @@ import {
   Link,
   Outlet,
   useLocation,
+  useNavigationType,
   useParams,
   useSubmit,
 } from "react-router";
@@ -50,6 +51,7 @@ const SEARCH_DELAY_MS = 250;
 export default function ArchiveLayout({ loaderData }: Route.ComponentProps) {
   const { q, cursor, page, home, favoriteIds } = loaderData;
   const { pathname, key: locationKey } = useLocation();
+  const navigationType = useNavigationType();
   const { courseId } = useParams();
   const activeId = courseId ? Number(courseId) : null;
   const favorites = new Set(favoriteIds);
@@ -59,17 +61,22 @@ export default function ArchiveLayout({ loaderData }: Route.ComponentProps) {
   // shortly after typing stops; without it, Enter submits.
   const submit = useSubmit();
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  // A pending search must not fire after the user moved on (opened a course,
-  // pressed Enter): cancel it whenever the address changes.
-  useEffect(() => () => clearTimeout(timer.current), [locationKey]);
+  // Opening a course or leaving the layout cancels pending typing. A search's
+  // own query-only navigation must not cancel a newer pending search.
+  useEffect(() => () => clearTimeout(timer.current), [pathname]);
+  // Back/forward restores the address even when its pathname is unchanged.
+  useEffect(() => {
+    if (navigationType === "POP") clearTimeout(timer.current);
+  }, [locationKey, navigationType]);
 
   // Keep the box in step with the address (back button, the Archive link)
   // without fighting the user while they type.
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => {
     const node = input.current;
-    if (node && document.activeElement !== node) node.value = q;
-  }, [q]);
+    if (node && (navigationType === "POP" || document.activeElement !== node))
+      node.value = q;
+  }, [q, navigationType, locationKey]);
   const onInput = (event: React.FormEvent<HTMLFormElement>) => {
     const form = event.currentTarget;
     clearTimeout(timer.current);
