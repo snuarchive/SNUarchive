@@ -3,6 +3,7 @@ import { expect, test } from "@playwright/test";
 import {
   ACCOUNTS,
   expectToast,
+  injectFault,
   openCourse,
   resetData,
   signIn,
@@ -12,6 +13,35 @@ import {
 // table in docs/findings/non-backend.md on the docs/legacy-findings branch).
 
 const COURSE = "미적분학 1";
+
+test("failed direct reports retain the draft until a successful submission", async ({
+  page,
+  request,
+}) => {
+  await signIn(page, ACCOUNTS.student);
+  await openCourse(page, COURSE);
+  await page.getByText("직접 제보").click();
+  const card = page.locator("details", { hasText: "직접 제보" });
+  await card.getByLabel("Q2").fill("50");
+  await card.getByLabel("비고").fill("실패 뒤에도 남을 초안");
+  await injectFault(request, {
+    method: "POST",
+    path: "/api/v1/courses/*/statistics",
+    status: 500,
+    code: "INTERNAL",
+  });
+  await card.getByRole("button", { name: "등록" }).click();
+  await expect(card.getByText(/서버|잠시|오류/).last()).toBeVisible();
+  await page.reload();
+  await expect(card.getByLabel("Q2")).toHaveValue("50");
+  await expect(card.getByLabel("비고")).toHaveValue("실패 뒤에도 남을 초안");
+  await card.getByRole("button", { name: "등록" }).click();
+  await expectToast(page, "통계량을 등록했습니다.");
+  await page.reload();
+  await page.getByText("직접 제보").click();
+  await expect(card.getByLabel("Q2")).toHaveValue("");
+  await expect(card.getByLabel("비고")).toHaveValue("");
+});
 
 test.beforeEach(async ({ request }) => {
   await resetData(request);

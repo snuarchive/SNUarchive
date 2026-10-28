@@ -18,6 +18,7 @@ export type ActionFailure = {
 export function useResetOnSuccess(
   form: RefObject<HTMLFormElement | null>,
   intent: string,
+  onSuccess?: () => void,
 ) {
   const navigation = useNavigation();
   const failure = useActionData() as ActionFailure | undefined;
@@ -33,9 +34,12 @@ export function useResetOnSuccess(
     }
     if (navigation.state === "idle" && submitting.current) {
       submitting.current = false;
-      if (failure?.intent !== intent) form.current?.reset();
+      if (failure?.intent !== intent) {
+        form.current?.reset();
+        onSuccess?.();
+      }
     }
-  }, [navigation.state, navigation.formData, failure, form, intent]);
+  }, [navigation.state, navigation.formData, failure, form, intent, onSuccess]);
 }
 
 /** The failure for this form, if the last submission was this one. */

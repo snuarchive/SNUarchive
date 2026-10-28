@@ -64,10 +64,12 @@ export default function ArchiveLayout({ loaderData }: Route.ComponentProps) {
   // Opening a course or leaving the layout cancels pending typing. A search's
   // own query-only navigation must not cancel a newer pending search.
   useEffect(() => () => clearTimeout(timer.current), [pathname]);
-  // Back/forward restores the address even when its pathname is unchanged.
+  // Cancel at the browser history event, before a slow POP loader commits.
   useEffect(() => {
-    if (navigationType === "POP") clearTimeout(timer.current);
-  }, [locationKey, navigationType]);
+    const cancel = () => clearTimeout(timer.current);
+    window.addEventListener("popstate", cancel);
+    return () => window.removeEventListener("popstate", cancel);
+  }, []);
 
   // Keep the box in step with the address (back button, the Archive link)
   // without fighting the user while they type.

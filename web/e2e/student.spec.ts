@@ -91,6 +91,48 @@ test("going back cancels pending typing on the same path", async ({ page }) => {
   await expect(search).toHaveValue("선형");
 });
 
+test("starting a slow Back navigation cancels pending typing", async ({
+  page,
+}) => {
+  const search = page.getByRole("searchbox");
+  await search.fill("선형");
+  await search.press("Enter");
+  await expect(page).toHaveURL(/q=%EC%84%A0%ED%98%95$/);
+  await search.fill("미");
+  await search.press("Enter");
+  await expect(page).toHaveURL(/q=%EB%AF%B8$/);
+  await page.clock.install();
+  let release!: () => void;
+  let ready!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const fetched = new Promise<void>((resolve) => {
+    ready = resolve;
+  });
+  await page.route("**/*.data*", async (route) => {
+    if (new URL(route.request().url()).searchParams.get("q") !== "선형") {
+      await route.continue();
+      return;
+    }
+    const response = await route.fetch();
+    ready();
+    await held;
+    await route.fulfill({ response });
+  });
+  await search.fill("미적");
+  const back = page.goBack();
+  await fetched;
+  await page.clock.runFor(500);
+  release();
+  await back;
+  await expect(
+    page.getByRole("link", { name: /선형대수학/ }).first(),
+  ).toBeVisible();
+  await expect(page).toHaveURL(/q=%EC%84%A0%ED%98%95$/);
+  await expect(search).toHaveValue("선형");
+});
+
 test("a course with open voting shows voting first and takes a vote", async ({
   page,
 }) => {

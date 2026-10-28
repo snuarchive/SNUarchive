@@ -136,7 +136,7 @@ export function DirectReport({
   const failure = useFailure("statistic");
   const hydrated = useHydrated();
   const [hasContent, setHasContent] = useState(false);
-  useResetOnSuccess(form, "statistic");
+  useResetOnSuccess(form, "statistic", () => storageRemove(DIRECT_DRAFT_KEY));
   useSavedNickname(form);
 
   // Restore this course's draft (legacy behaviour), and open the card if it
@@ -205,7 +205,6 @@ export function DirectReport({
         }}
         onSubmit={(event) => {
           rememberNickname(event.currentTarget);
-          storageRemove(DIRECT_DRAFT_KEY);
         }}
         preventScrollReset
       >
