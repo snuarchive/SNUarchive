@@ -21,7 +21,8 @@ export function safePath(
   } catch {
     return fallback;
   }
-  if (url.origin !== BASE) return fallback;
+  // Dot-segment normalization can expose a leading // in the returned path.
+  if (url.origin !== BASE || url.pathname.startsWith("//")) return fallback;
   return url.pathname + url.search + url.hash;
 }
 

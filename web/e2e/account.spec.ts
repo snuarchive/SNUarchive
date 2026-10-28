@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { ACCOUNTS, expectToast, resetData, signIn } from "./helpers";
-import { TARGET } from "./origins";
+import { APP_ORIGIN, TARGET } from "./origins";
 
 test.beforeEach(async ({ request }) => {
   await resetData(request);
@@ -23,6 +23,39 @@ test("the profile banner can be put off for the session", async ({ page }) => {
   await expect(page.getByText("학과 통계에 참여해보세요")).toHaveCount(0);
   await page.reload();
   await expect(page.getByText("학과 통계에 참여해보세요")).toHaveCount(0);
+});
+
+test("profile dismissal refuses redirects that normalize to another authority", async ({
+  page,
+}) => {
+  await signIn(page, ACCOUNTS.newbie);
+  for (const redirectTo of [
+    "/..//outside.example",
+    "/.//outside.example",
+    "/%2e//outside.example",
+    "/%2e%2e//outside.example",
+  ]) {
+    const response = await page.request.post("/profile", {
+      headers: { Origin: APP_ORIGIN },
+      form: { intent: "dismiss", redirectTo },
+      maxRedirects: 0,
+    });
+    expect(response.status()).toBe(302);
+    expect(response.headers().location, redirectTo).toBe("/");
+  }
+});
+
+test("profile dismissal preserves an internal redirect's query and fragment", async ({
+  page,
+}) => {
+  await signIn(page, ACCOUNTS.newbie);
+  const response = await page.request.post("/profile", {
+    headers: { Origin: APP_ORIGIN },
+    form: { intent: "dismiss", redirectTo: "/me?tab=profile#favorites" },
+    maxRedirects: 0,
+  });
+  expect(response.status()).toBe(302);
+  expect(response.headers().location).toBe("/me?tab=profile#favorites");
 });
 
 test("deleting the account needs the confirmation page", async ({ page }) => {
