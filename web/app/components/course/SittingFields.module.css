@@ -1,0 +1,22 @@
+.kindRow,
+.termRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+/* Once JavaScript knows the kind, hide the number for unnumbered kinds. */
+:global(.js) .number[data-needed="false"] {
+  display: none;
+}
+
+:global(.js) .kindRow:has(.number[data-needed="false"]) {
+  grid-template-columns: 1fr;
+}
+
+@media (max-width: 734px) {
+  .kindRow,
+  .termRow {
+    grid-template-columns: 1fr;
+  }
+}

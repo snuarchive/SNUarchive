@@ -1,0 +1,144 @@
+.wrap {
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+
+.table {
+  width: 100%;
+  min-width: 900px;
+  border-collapse: collapse;
+  font-size: 14px;
+  letter-spacing: 0;
+}
+
+.table th,
+.table td {
+  height: 42px;
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--soft-line);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--background-raised);
+  color: var(--text-secondary);
+  font-weight: 700;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.graphRow td {
+  height: auto;
+  padding: 8px 14px 12px;
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.note {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.graphCell {
+  min-width: 0;
+}
+
+@media (max-width: 734px) {
+  .wrap {
+    overflow: visible;
+    border: 0;
+  }
+
+  .table {
+    display: block;
+    min-width: 0;
+  }
+
+  .table thead {
+    display: none;
+  }
+
+  .table tbody {
+    display: grid;
+    gap: 8px;
+  }
+
+  .table tr {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: var(--background-raised);
+  }
+
+  .table tr.graphRow {
+    display: block;
+    padding: 10px 12px 12px;
+    background: var(--background-surface);
+  }
+
+  .table td {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2px;
+    min-height: 0;
+    height: auto;
+    padding: 7px 8px;
+    border-bottom: 0;
+    white-space: normal;
+  }
+
+  .dataRow td:nth-child(1),
+  .dataRow td:nth-child(2),
+  .dataRow td:nth-child(7),
+  .dataRow td:nth-child(8) {
+    grid-column: span 2;
+  }
+
+  .dataRow td:nth-child(3),
+  .dataRow td:nth-child(4),
+  .dataRow td:nth-child(5),
+  .dataRow td:nth-child(6) {
+    padding: 8px 6px;
+    border-top: 1px solid var(--soft-line);
+    background: rgba(255, 255, 255, 0.02);
+  }
+
+  .table td::before {
+    content: attr(data-label);
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .graphCell,
+  .dataRow td:nth-child(9),
+  .dataRow td:nth-child(10),
+  .table td[colspan] {
+    grid-column: 1 / -1;
+  }
+
+  .graphCell {
+    display: grid;
+    min-width: 0;
+    padding: 0;
+    border-top: 0;
+  }
+
+  .note {
+    max-width: none;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+  }
+}

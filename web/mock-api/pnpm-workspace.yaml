@@ -1,0 +1,4 @@
+# Standalone package: not part of the web app's install or build.
+allowBuilds:
+  # tsx depends on esbuild, whose postinstall only verifies the platform binary.
+  esbuild: true
