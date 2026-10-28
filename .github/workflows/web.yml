@@ -29,6 +29,9 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
+        with:
+          # api:types records the last commit that changed the contract.
+          fetch-depth: 0
 
       - uses: pnpm/action-setup@v4
         with:
@@ -46,6 +49,11 @@ jobs:
         run: |
           pnpm install --frozen-lockfile
           pnpm --dir mock-api install --frozen-lockfile
+
+      - name: Check generated API types
+        run: |
+          pnpm api:types
+          git diff --exit-code -- app/api/schema.d.ts
 
       - name: Typecheck
         run: |
